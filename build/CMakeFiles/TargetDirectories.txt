@@ -1,0 +1,3 @@
+C:/Users/marco/source/repos/ShadPKG/build/CMakeFiles/pkgtool.dir
+C:/Users/marco/source/repos/ShadPKG/build/CMakeFiles/ALL_BUILD.dir
+C:/Users/marco/source/repos/ShadPKG/build/CMakeFiles/ZERO_CHECK.dir

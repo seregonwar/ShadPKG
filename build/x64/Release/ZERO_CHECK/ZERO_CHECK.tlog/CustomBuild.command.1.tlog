@@ -1,0 +1,10 @@
+^C:\USERS\MARCO\SOURCE\REPOS\SHADPKG\BUILD\CMAKEFILES\D40E6F2B04570D2788753C9729C9E098\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/marco/source/repos/ShadPKG -BC:/Users/marco/source/repos/ShadPKG/build --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Users/marco/source/repos/ShadPKG/build/pkgtool_minimal.sln
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd
