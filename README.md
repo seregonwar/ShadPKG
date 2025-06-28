@@ -1,6 +1,6 @@
 # shadPKG
 
-PS4 PKG Extractor/Decryptor
+A tool for deriving PKG packet encryption keys for ps4 written in c++
 
 ## Description
 
