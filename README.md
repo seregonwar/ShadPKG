@@ -1,4 +1,5 @@
-# shadPKG
+# shadPKG 
+[![Github All Releases](https://img.shields.io/github/downloads/seregonwar/ShadPKG/total.svg)]()
 
 A tool for deriving PKG packet encryption keys for ps4 written in c++
 
