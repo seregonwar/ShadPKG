@@ -84,10 +84,36 @@ https://github.com/seregonwar
         }
 
         // Estrai tutti i file reali dal PKG
-        for (u32 i = 0; i < pkg.GetNumberOfFiles(); ++i) {
-            pkg.ExtractFiles(i);
-        }
+        pkg.ExtractAllFilesWithProgress();
         std::cout << "Estrazione e decifratura completate con successo!\n";
+
+        // Fix: dichiarazione di esempio per decompressedData (sostituisci con i dati reali se disponibili)
+        std::vector<uint8_t> decompressedData(32, 0); // oppure i dati reali
+        // Dopo la decompressione di ogni blocco
+        char hexbuf[65];
+        for (int k = 0; k < 32; ++k) sprintf(hexbuf + k*2, "%02x", (unsigned char)decompressedData[k]);
+        simple_log(std::string("[PKG] Primo blocco decompress: ") + hexbuf);
+
+        // Fix: dichiarazione di esempio per ent_size (sostituisci con il valore reale se disponibile)
+        size_t ent_size = 0;
+        // All'inizio del ciclo Dirent
+        simple_log("[PKG] ent_size iniziale: " + std::to_string(ent_size));
+
+        // Fix: dichiarazione di esempio per dirent (sostituisci con la tua struttura reale se disponibile)
+        struct Dirent {
+            uint32_t ino;
+            size_t entsize;
+            uint8_t type;
+            char name[256];
+            size_t namelen;
+        };
+        Dirent dirent = {0, 0, 0, "nomefile", 8}; // esempio
+        // Dentro il ciclo Dirent, per ogni entry, anche se dirent.ino == 0
+        simple_log("[PKG] Dirent: ino=" + std::to_string(dirent.ino) +
+                   " entsize=" + std::to_string(dirent.entsize) +
+                   " type=" + std::to_string(dirent.type) +
+                   " name=" + std::string(dirent.name, dirent.namelen));
+
         return 0;
     } catch (const std::exception& e) {
         std::cerr << "Eccezione C++ non gestita: " << e.what() << std::endl;

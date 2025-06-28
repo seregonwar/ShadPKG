@@ -23,32 +23,32 @@ events:
       
       The output was:
       0
-      Versione di MSBuild 17.13.15+18b3035f6 per .NET Framework
-      Compilazione avviata 27/06/2025 21:47:57.
+      Versione di MSBuild 17.14.14+a129329f1 per .NET Framework
+      Compilazione avviata 28/06/2025 16:07:48.
       
       Progetto "C:\\Users\\marco\\source\\repos\\ShadPKG\\build\\CMakeFiles\\4.0.0-rc4\\CompilerIdC\\CompilerIdC.vcxproj" sul nodo 1 (destinazioni predefinite).
       PrepareForBuild:
         Creazione directory "Debug\\".
-        L'output strutturato ├¿ abilitato. La formattazione della diagnostica del compilatore rifletter├á la gerarchia degli errori. Per altri dettagli, vedere https://aka.ms/cpp/structured-output.
+        L'output strutturato è abilitato. La formattazione della diagnostica del compilatore rifletterà la gerarchia degli errori. Per altri dettagli, vedere https://aka.ms/cpp/structured-output.
         Creazione directory "Debug\\CompilerIdC.tlog\\".
       InitializeBuildStatus:
-        Creazione di "Debug\\CompilerIdC.tlog\\unsuccessfulbuild". ├ê stato specificato "AlwaysCreate".
+        Creazione di "Debug\\CompilerIdC.tlog\\unsuccessfulbuild". È stato specificato "AlwaysCreate".
         Aggiornamento timestamp di "Debug\\CompilerIdC.tlog\\unsuccessfulbuild".
       VcpkgTripletSelection:
         Using triplet "x64-windows" from "C:\\Users\\marco\\source\\repos\\ShadPKG\\vcpkg\\installed\\x64-windows\\"
         Using normalized configuration "Release"
       ClCompile:
-        C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise\\VC\\Tools\\MSVC\\14.43.34808\\bin\\HostX64\\x64\\CL.exe /c /I"C:\\Users\\marco\\source\\repos\\ShadPKG\\vcpkg\\installed\\x64-windows\\include" /nologo /W0 /WX- /diagnostics:column /Od /D _MBCS /Gm- /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /Fo"Debug\\\\" /Fd"Debug\\vc143.pdb" /external:W0 /Gd /TC /FC /errorReport:queue CMakeCCompilerId.c
+        C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64\\CL.exe /c /I"C:\\Users\\marco\\source\\repos\\ShadPKG\\vcpkg\\installed\\x64-windows\\include" /nologo /W0 /WX- /diagnostics:column /Od /D _MBCS /Gm- /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /Fo"Debug\\\\" /Fd"Debug\\vc143.pdb" /external:W0 /Gd /TC /FC /errorReport:queue CMakeCCompilerId.c
         CMakeCCompilerId.c
       Link:
-        C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise\\VC\\Tools\\MSVC\\14.43.34808\\bin\\HostX64\\x64\\link.exe /ERRORREPORT:QUEUE /OUT:".\\CompilerIdC.exe" /INCREMENTAL:NO /NOLOGO /LIBPATH:"C:\\Users\\marco\\source\\repos\\ShadPKG\\vcpkg\\installed\\x64-windows\\lib" /LIBPATH:"C:\\Users\\marco\\source\\repos\\ShadPKG\\vcpkg\\installed\\x64-windows\\lib\\manual-link" kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib "C:\\Users\\marco\\source\\repos\\ShadPKG\\vcpkg\\installed\\x64-windows\\lib\\*.lib" /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /PDB:".\\CompilerIdC.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:".\\CompilerIdC.lib" /MACHINE:X64 Debug\\CMakeCCompilerId.obj
+        C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64\\link.exe /ERRORREPORT:QUEUE /OUT:".\\CompilerIdC.exe" /INCREMENTAL:NO /NOLOGO /LIBPATH:"C:\\Users\\marco\\source\\repos\\ShadPKG\\vcpkg\\installed\\x64-windows\\lib" /LIBPATH:"C:\\Users\\marco\\source\\repos\\ShadPKG\\vcpkg\\installed\\x64-windows\\lib\\manual-link" kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib "C:\\Users\\marco\\source\\repos\\ShadPKG\\vcpkg\\installed\\x64-windows\\lib\\*.lib" /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /PDB:".\\CompilerIdC.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:".\\CompilerIdC.lib" /MACHINE:X64 Debug\\CMakeCCompilerId.obj
         CompilerIdC.vcxproj -> C:\\Users\\marco\\source\\repos\\ShadPKG\\build\\CMakeFiles\\4.0.0-rc4\\CompilerIdC\\CompilerIdC.exe
       AppLocalFromInstalled:
         pwsh.exe -ExecutionPolicy Bypass -noprofile -File "C:\\Users\\marco\\source\\repos\\ShadPKG\\vcpkg\\scripts\\buildsystems\\msbuild\\applocal.ps1" "C:\\Users\\marco\\source\\repos\\ShadPKG\\build\\CMakeFiles\\4.0.0-rc4\\CompilerIdC\\CompilerIdC.exe" "C:\\Users\\marco\\source\\repos\\ShadPKG\\vcpkg\\installed\\x64-windows\\bin" "Debug\\CompilerIdC.tlog\\CompilerIdC.write.1u.tlog" "Debug\\vcpkg.applocal.log"
       PostBuildEvent:
         for %%i in (cl.exe) do @echo CMAKE_C_COMPILER=%%~$PATH:i
         :VCEnd
-        CMAKE_C_COMPILER=C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise\\VC\\Tools\\MSVC\\14.43.34808\\bin\\Hostx64\\x64\\cl.exe
+        CMAKE_C_COMPILER=C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe
       FinalizeBuildStatus:
         Eliminazione del file "Debug\\CompilerIdC.tlog\\unsuccessfulbuild" in corso.
         Aggiornamento timestamp di "Debug\\CompilerIdC.tlog\\CompilerIdC.lastbuildstate".
@@ -58,7 +58,7 @@ events:
           Avvisi: 0
           Errori: 0
       
-      Tempo trascorso 00:00:00.90
+      Tempo trascorso 00:00:00.84
       
       
       Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "CompilerIdC.exe"
@@ -83,32 +83,32 @@ events:
       
       The output was:
       0
-      Versione di MSBuild 17.13.15+18b3035f6 per .NET Framework
-      Compilazione avviata 27/06/2025 21:47:58.
+      Versione di MSBuild 17.14.14+a129329f1 per .NET Framework
+      Compilazione avviata 28/06/2025 16:07:49.
       
       Progetto "C:\\Users\\marco\\source\\repos\\ShadPKG\\build\\CMakeFiles\\4.0.0-rc4\\CompilerIdCXX\\CompilerIdCXX.vcxproj" sul nodo 1 (destinazioni predefinite).
       PrepareForBuild:
         Creazione directory "Debug\\".
-        L'output strutturato ├¿ abilitato. La formattazione della diagnostica del compilatore rifletter├á la gerarchia degli errori. Per altri dettagli, vedere https://aka.ms/cpp/structured-output.
+        L'output strutturato è abilitato. La formattazione della diagnostica del compilatore rifletterà la gerarchia degli errori. Per altri dettagli, vedere https://aka.ms/cpp/structured-output.
         Creazione directory "Debug\\CompilerIdCXX.tlog\\".
       InitializeBuildStatus:
-        Creazione di "Debug\\CompilerIdCXX.tlog\\unsuccessfulbuild". ├ê stato specificato "AlwaysCreate".
+        Creazione di "Debug\\CompilerIdCXX.tlog\\unsuccessfulbuild". È stato specificato "AlwaysCreate".
         Aggiornamento timestamp di "Debug\\CompilerIdCXX.tlog\\unsuccessfulbuild".
       VcpkgTripletSelection:
         Using triplet "x64-windows" from "C:\\Users\\marco\\source\\repos\\ShadPKG\\vcpkg\\installed\\x64-windows\\"
         Using normalized configuration "Release"
       ClCompile:
-        C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise\\VC\\Tools\\MSVC\\14.43.34808\\bin\\HostX64\\x64\\CL.exe /c /I"C:\\Users\\marco\\source\\repos\\ShadPKG\\vcpkg\\installed\\x64-windows\\include" /nologo /W0 /WX- /diagnostics:column /Od /D _MBCS /Gm- /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /Fo"Debug\\\\" /Fd"Debug\\vc143.pdb" /external:W0 /Gd /TP /FC /errorReport:queue CMakeCXXCompilerId.cpp
+        C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64\\CL.exe /c /I"C:\\Users\\marco\\source\\repos\\ShadPKG\\vcpkg\\installed\\x64-windows\\include" /nologo /W0 /WX- /diagnostics:column /Od /D _MBCS /Gm- /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /Fo"Debug\\\\" /Fd"Debug\\vc143.pdb" /external:W0 /Gd /TP /FC /errorReport:queue CMakeCXXCompilerId.cpp
         CMakeCXXCompilerId.cpp
       Link:
-        C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise\\VC\\Tools\\MSVC\\14.43.34808\\bin\\HostX64\\x64\\link.exe /ERRORREPORT:QUEUE /OUT:".\\CompilerIdCXX.exe" /INCREMENTAL:NO /NOLOGO /LIBPATH:"C:\\Users\\marco\\source\\repos\\ShadPKG\\vcpkg\\installed\\x64-windows\\lib" /LIBPATH:"C:\\Users\\marco\\source\\repos\\ShadPKG\\vcpkg\\installed\\x64-windows\\lib\\manual-link" kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib "C:\\Users\\marco\\source\\repos\\ShadPKG\\vcpkg\\installed\\x64-windows\\lib\\*.lib" /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /PDB:".\\CompilerIdCXX.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:".\\CompilerIdCXX.lib" /MACHINE:X64 Debug\\CMakeCXXCompilerId.obj
+        C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64\\link.exe /ERRORREPORT:QUEUE /OUT:".\\CompilerIdCXX.exe" /INCREMENTAL:NO /NOLOGO /LIBPATH:"C:\\Users\\marco\\source\\repos\\ShadPKG\\vcpkg\\installed\\x64-windows\\lib" /LIBPATH:"C:\\Users\\marco\\source\\repos\\ShadPKG\\vcpkg\\installed\\x64-windows\\lib\\manual-link" kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib "C:\\Users\\marco\\source\\repos\\ShadPKG\\vcpkg\\installed\\x64-windows\\lib\\*.lib" /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /PDB:".\\CompilerIdCXX.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:".\\CompilerIdCXX.lib" /MACHINE:X64 Debug\\CMakeCXXCompilerId.obj
         CompilerIdCXX.vcxproj -> C:\\Users\\marco\\source\\repos\\ShadPKG\\build\\CMakeFiles\\4.0.0-rc4\\CompilerIdCXX\\CompilerIdCXX.exe
       AppLocalFromInstalled:
         pwsh.exe -ExecutionPolicy Bypass -noprofile -File "C:\\Users\\marco\\source\\repos\\ShadPKG\\vcpkg\\scripts\\buildsystems\\msbuild\\applocal.ps1" "C:\\Users\\marco\\source\\repos\\ShadPKG\\build\\CMakeFiles\\4.0.0-rc4\\CompilerIdCXX\\CompilerIdCXX.exe" "C:\\Users\\marco\\source\\repos\\ShadPKG\\vcpkg\\installed\\x64-windows\\bin" "Debug\\CompilerIdCXX.tlog\\CompilerIdCXX.write.1u.tlog" "Debug\\vcpkg.applocal.log"
       PostBuildEvent:
         for %%i in (cl.exe) do @echo CMAKE_CXX_COMPILER=%%~$PATH:i
         :VCEnd
-        CMAKE_CXX_COMPILER=C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise\\VC\\Tools\\MSVC\\14.43.34808\\bin\\Hostx64\\x64\\cl.exe
+        CMAKE_CXX_COMPILER=C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\Hostx64\\x64\\cl.exe
       FinalizeBuildStatus:
         Eliminazione del file "Debug\\CompilerIdCXX.tlog\\unsuccessfulbuild" in corso.
         Aggiornamento timestamp di "Debug\\CompilerIdCXX.tlog\\CompilerIdCXX.lastbuildstate".
@@ -118,7 +118,7 @@ events:
           Avvisi: 0
           Errori: 0
       
-      Tempo trascorso 00:00:00.95
+      Tempo trascorso 00:00:00.82
       
       
       Compilation of the CXX compiler identification source "CMakeCXXCompilerId.cpp" produced "CompilerIdCXX.exe"
@@ -137,8 +137,8 @@ events:
     checks:
       - "Detecting C compiler ABI info"
     directories:
-      source: "C:/Users/marco/source/repos/ShadPKG/build/CMakeFiles/CMakeScratch/TryCompile-vamkdi"
-      binary: "C:/Users/marco/source/repos/ShadPKG/build/CMakeFiles/CMakeScratch/TryCompile-vamkdi"
+      source: "C:/Users/marco/source/repos/ShadPKG/build/CMakeFiles/CMakeScratch/TryCompile-rasuzh"
+      binary: "C:/Users/marco/source/repos/ShadPKG/build/CMakeFiles/CMakeScratch/TryCompile-rasuzh"
     cmakeVariables:
       CMAKE_C_FLAGS: "/DWIN32 /D_WINDOWS"
       CMAKE_C_FLAGS_DEBUG: "/Zi /Ob0 /Od /RTC1"
@@ -151,40 +151,40 @@ events:
       variable: "CMAKE_C_ABI_COMPILED"
       cached: true
       stdout: |
-        Change Dir: 'C:/Users/marco/source/repos/ShadPKG/build/CMakeFiles/CMakeScratch/TryCompile-vamkdi'
+        Change Dir: 'C:/Users/marco/source/repos/ShadPKG/build/CMakeFiles/CMakeScratch/TryCompile-rasuzh'
         
-        Run Build Command(s): "C:/Program Files/Microsoft Visual Studio/2022/Enterprise/MSBuild/Current/Bin/amd64/MSBuild.exe" cmTC_2ed6c.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=17.0 /v:n
-        Versione di MSBuild 17.13.15+18b3035f6 per .NET Framework
-        Compilazione avviata 27/06/2025 21:48:00.
+        Run Build Command(s): "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/MSBuild/Current/Bin/amd64/MSBuild.exe" cmTC_7f003.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=17.0 /v:n
+        Versione di MSBuild 17.14.14+a129329f1 per .NET Framework
+        Compilazione avviata 28/06/2025 16:07:50.
         
-        Progetto "C:\\Users\\marco\\source\\repos\\ShadPKG\\build\\CMakeFiles\\CMakeScratch\\TryCompile-vamkdi\\cmTC_2ed6c.vcxproj" sul nodo 1 (destinazioni predefinite).
+        Progetto "C:\\Users\\marco\\source\\repos\\ShadPKG\\build\\CMakeFiles\\CMakeScratch\\TryCompile-rasuzh\\cmTC_7f003.vcxproj" sul nodo 1 (destinazioni predefinite).
         PrepareForBuild:
-          Creazione directory "cmTC_2ed6c.dir\\Debug\\".
-          L'output strutturato ├¿ abilitato. La formattazione della diagnostica del compilatore rifletter├á la gerarchia degli errori. Per altri dettagli, vedere https://aka.ms/cpp/structured-output.
-          Creazione directory "C:\\Users\\marco\\source\\repos\\ShadPKG\\build\\CMakeFiles\\CMakeScratch\\TryCompile-vamkdi\\Debug\\".
-          Creazione directory "cmTC_2ed6c.dir\\Debug\\cmTC_2ed6c.tlog\\".
+          Creazione directory "cmTC_7f003.dir\\Debug\\".
+          L'output strutturato è abilitato. La formattazione della diagnostica del compilatore rifletterà la gerarchia degli errori. Per altri dettagli, vedere https://aka.ms/cpp/structured-output.
+          Creazione directory "C:\\Users\\marco\\source\\repos\\ShadPKG\\build\\CMakeFiles\\CMakeScratch\\TryCompile-rasuzh\\Debug\\".
+          Creazione directory "cmTC_7f003.dir\\Debug\\cmTC_7f003.tlog\\".
         InitializeBuildStatus:
-          Creazione di "cmTC_2ed6c.dir\\Debug\\cmTC_2ed6c.tlog\\unsuccessfulbuild". ├ê stato specificato "AlwaysCreate".
-          Aggiornamento timestamp di "cmTC_2ed6c.dir\\Debug\\cmTC_2ed6c.tlog\\unsuccessfulbuild".
+          Creazione di "cmTC_7f003.dir\\Debug\\cmTC_7f003.tlog\\unsuccessfulbuild". È stato specificato "AlwaysCreate".
+          Aggiornamento timestamp di "cmTC_7f003.dir\\Debug\\cmTC_7f003.tlog\\unsuccessfulbuild".
         ClCompile:
-          C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise\\VC\\Tools\\MSVC\\14.43.34808\\bin\\HostX64\\x64\\CL.exe /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D "CMAKE_INTDIR=\\"Debug\\"" /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /Fo"cmTC_2ed6c.dir\\Debug\\\\" /Fd"cmTC_2ed6c.dir\\Debug\\vc143.pdb" /external:W1 /Gd /TC /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-4.0\\Modules\\CMakeCCompilerABI.c"
-          Microsoft (R) C/C++ Optimizing Compiler versione 19.43.34808 per x64
+          C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64\\CL.exe /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D "CMAKE_INTDIR=\\"Debug\\"" /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /Fo"cmTC_7f003.dir\\Debug\\\\" /Fd"cmTC_7f003.dir\\Debug\\vc143.pdb" /external:W1 /Gd /TC /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-4.0\\Modules\\CMakeCCompilerABI.c"
+          Microsoft (R) C/C++ Optimizing Compiler versione 19.44.35211 per x64
           Copyright (C) Microsoft Corporation. Tutti i diritti  sono riservati.
-          cl /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D "CMAKE_INTDIR=\\"Debug\\"" /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /Fo"cmTC_2ed6c.dir\\Debug\\\\" /Fd"cmTC_2ed6c.dir\\Debug\\vc143.pdb" /external:W1 /Gd /TC /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-4.0\\Modules\\CMakeCCompilerABI.c"
+          cl /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D "CMAKE_INTDIR=\\"Debug\\"" /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /Fo"cmTC_7f003.dir\\Debug\\\\" /Fd"cmTC_7f003.dir\\Debug\\vc143.pdb" /external:W1 /Gd /TC /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-4.0\\Modules\\CMakeCCompilerABI.c"
           CMakeCCompilerABI.c
         Link:
-          C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise\\VC\\Tools\\MSVC\\14.43.34808\\bin\\HostX64\\x64\\link.exe /ERRORREPORT:QUEUE /OUT:"C:\\Users\\marco\\source\\repos\\ShadPKG\\build\\CMakeFiles\\CMakeScratch\\TryCompile-vamkdi\\Debug\\cmTC_2ed6c.exe" /INCREMENTAL /ILK:"cmTC_2ed6c.dir\\Debug\\cmTC_2ed6c.ilk" /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/marco/source/repos/ShadPKG/build/CMakeFiles/CMakeScratch/TryCompile-vamkdi/Debug/cmTC_2ed6c.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"C:/Users/marco/source/repos/ShadPKG/build/CMakeFiles/CMakeScratch/TryCompile-vamkdi/Debug/cmTC_2ed6c.lib" /MACHINE:X64  /machine:x64 cmTC_2ed6c.dir\\Debug\\CMakeCCompilerABI.obj
-          cmTC_2ed6c.vcxproj -> C:\\Users\\marco\\source\\repos\\ShadPKG\\build\\CMakeFiles\\CMakeScratch\\TryCompile-vamkdi\\Debug\\cmTC_2ed6c.exe
+          C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64\\link.exe /ERRORREPORT:QUEUE /OUT:"C:\\Users\\marco\\source\\repos\\ShadPKG\\build\\CMakeFiles\\CMakeScratch\\TryCompile-rasuzh\\Debug\\cmTC_7f003.exe" /INCREMENTAL /ILK:"cmTC_7f003.dir\\Debug\\cmTC_7f003.ilk" /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/marco/source/repos/ShadPKG/build/CMakeFiles/CMakeScratch/TryCompile-rasuzh/Debug/cmTC_7f003.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"C:/Users/marco/source/repos/ShadPKG/build/CMakeFiles/CMakeScratch/TryCompile-rasuzh/Debug/cmTC_7f003.lib" /MACHINE:X64  /machine:x64 cmTC_7f003.dir\\Debug\\CMakeCCompilerABI.obj
+          cmTC_7f003.vcxproj -> C:\\Users\\marco\\source\\repos\\ShadPKG\\build\\CMakeFiles\\CMakeScratch\\TryCompile-rasuzh\\Debug\\cmTC_7f003.exe
         FinalizeBuildStatus:
-          Eliminazione del file "cmTC_2ed6c.dir\\Debug\\cmTC_2ed6c.tlog\\unsuccessfulbuild" in corso.
-          Aggiornamento timestamp di "cmTC_2ed6c.dir\\Debug\\cmTC_2ed6c.tlog\\cmTC_2ed6c.lastbuildstate".
-        Compilazione progetto "C:\\Users\\marco\\source\\repos\\ShadPKG\\build\\CMakeFiles\\CMakeScratch\\TryCompile-vamkdi\\cmTC_2ed6c.vcxproj" (destinazioni predefinite) completata.
+          Eliminazione del file "cmTC_7f003.dir\\Debug\\cmTC_7f003.tlog\\unsuccessfulbuild" in corso.
+          Aggiornamento timestamp di "cmTC_7f003.dir\\Debug\\cmTC_7f003.tlog\\cmTC_7f003.lastbuildstate".
+        Compilazione progetto "C:\\Users\\marco\\source\\repos\\ShadPKG\\build\\CMakeFiles\\CMakeScratch\\TryCompile-rasuzh\\cmTC_7f003.vcxproj" (destinazioni predefinite) completata.
         
         Compilazione completata.
             Avvisi: 0
             Errori: 0
         
-        Tempo trascorso 00:00:00.45
+        Tempo trascorso 00:00:00.48
         
       exitCode: 0
   -
@@ -197,7 +197,7 @@ events:
       Parsed C implicit link information:
         link line regex: [^( *|.*[/\\])(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)|link\\.exe|lld-link(\\.exe)?|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\\]+-)?ld|collect2)[^/\\]*( |$)]
         linker tool regex: [^[ 	]*(->|")?[ 	]*(([^"]*[/\\])?(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)|link\\.exe|lld-link(\\.exe)?))("|,| |$)]
-        linker tool for 'C': C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Tools/MSVC/14.43.34808/bin/HostX64/x64/link.exe
+        linker tool for 'C': C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/HostX64/x64/link.exe
         implicit libs: []
         implicit objs: []
         implicit dirs: []
@@ -212,8 +212,8 @@ events:
       - "C:/Program Files/CMake/share/cmake-4.0/Modules/CMakeTestCCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
       - "CMakeLists.txt:2 (project)"
     message: |
-      Running the C compiler's linker: "C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Tools/MSVC/14.43.34808/bin/HostX64/x64/link.exe" "-v"
-      Microsoft (R) Incremental Linker Version 14.43.34808.0
+      Running the C compiler's linker: "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/HostX64/x64/link.exe" "-v"
+      Microsoft (R) Incremental Linker Version 14.44.35211.0
       Copyright (C) Microsoft Corporation.  All rights reserved.
   -
     kind: "try_compile-v1"
@@ -224,8 +224,8 @@ events:
     checks:
       - "Detecting CXX compiler ABI info"
     directories:
-      source: "C:/Users/marco/source/repos/ShadPKG/build/CMakeFiles/CMakeScratch/TryCompile-9r1gj7"
-      binary: "C:/Users/marco/source/repos/ShadPKG/build/CMakeFiles/CMakeScratch/TryCompile-9r1gj7"
+      source: "C:/Users/marco/source/repos/ShadPKG/build/CMakeFiles/CMakeScratch/TryCompile-hunnjx"
+      binary: "C:/Users/marco/source/repos/ShadPKG/build/CMakeFiles/CMakeScratch/TryCompile-hunnjx"
     cmakeVariables:
       CMAKE_CXX_FLAGS: "/DWIN32 /D_WINDOWS /GR /EHsc"
       CMAKE_CXX_FLAGS_DEBUG: "/Zi /Ob0 /Od /RTC1"
@@ -239,40 +239,40 @@ events:
       variable: "CMAKE_CXX_ABI_COMPILED"
       cached: true
       stdout: |
-        Change Dir: 'C:/Users/marco/source/repos/ShadPKG/build/CMakeFiles/CMakeScratch/TryCompile-9r1gj7'
+        Change Dir: 'C:/Users/marco/source/repos/ShadPKG/build/CMakeFiles/CMakeScratch/TryCompile-hunnjx'
         
-        Run Build Command(s): "C:/Program Files/Microsoft Visual Studio/2022/Enterprise/MSBuild/Current/Bin/amd64/MSBuild.exe" cmTC_e6b76.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=17.0 /v:n
-        Versione di MSBuild 17.13.15+18b3035f6 per .NET Framework
-        Compilazione avviata 27/06/2025 21:48:00.
+        Run Build Command(s): "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/MSBuild/Current/Bin/amd64/MSBuild.exe" cmTC_d95a2.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=17.0 /v:n
+        Versione di MSBuild 17.14.14+a129329f1 per .NET Framework
+        Compilazione avviata 28/06/2025 16:07:51.
         
-        Progetto "C:\\Users\\marco\\source\\repos\\ShadPKG\\build\\CMakeFiles\\CMakeScratch\\TryCompile-9r1gj7\\cmTC_e6b76.vcxproj" sul nodo 1 (destinazioni predefinite).
+        Progetto "C:\\Users\\marco\\source\\repos\\ShadPKG\\build\\CMakeFiles\\CMakeScratch\\TryCompile-hunnjx\\cmTC_d95a2.vcxproj" sul nodo 1 (destinazioni predefinite).
         PrepareForBuild:
-          Creazione directory "cmTC_e6b76.dir\\Debug\\".
-          L'output strutturato ├¿ abilitato. La formattazione della diagnostica del compilatore rifletter├á la gerarchia degli errori. Per altri dettagli, vedere https://aka.ms/cpp/structured-output.
-          Creazione directory "C:\\Users\\marco\\source\\repos\\ShadPKG\\build\\CMakeFiles\\CMakeScratch\\TryCompile-9r1gj7\\Debug\\".
-          Creazione directory "cmTC_e6b76.dir\\Debug\\cmTC_e6b76.tlog\\".
+          Creazione directory "cmTC_d95a2.dir\\Debug\\".
+          L'output strutturato è abilitato. La formattazione della diagnostica del compilatore rifletterà la gerarchia degli errori. Per altri dettagli, vedere https://aka.ms/cpp/structured-output.
+          Creazione directory "C:\\Users\\marco\\source\\repos\\ShadPKG\\build\\CMakeFiles\\CMakeScratch\\TryCompile-hunnjx\\Debug\\".
+          Creazione directory "cmTC_d95a2.dir\\Debug\\cmTC_d95a2.tlog\\".
         InitializeBuildStatus:
-          Creazione di "cmTC_e6b76.dir\\Debug\\cmTC_e6b76.tlog\\unsuccessfulbuild". ├ê stato specificato "AlwaysCreate".
-          Aggiornamento timestamp di "cmTC_e6b76.dir\\Debug\\cmTC_e6b76.tlog\\unsuccessfulbuild".
+          Creazione di "cmTC_d95a2.dir\\Debug\\cmTC_d95a2.tlog\\unsuccessfulbuild". È stato specificato "AlwaysCreate".
+          Aggiornamento timestamp di "cmTC_d95a2.dir\\Debug\\cmTC_d95a2.tlog\\unsuccessfulbuild".
         ClCompile:
-          C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise\\VC\\Tools\\MSVC\\14.43.34808\\bin\\HostX64\\x64\\CL.exe /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D "CMAKE_INTDIR=\\"Debug\\"" /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /GR /Fo"cmTC_e6b76.dir\\Debug\\\\" /Fd"cmTC_e6b76.dir\\Debug\\vc143.pdb" /external:W1 /Gd /TP /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-4.0\\Modules\\CMakeCXXCompilerABI.cpp"
-          Microsoft (R) C/C++ Optimizing Compiler versione 19.43.34808 per x64
+          C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64\\CL.exe /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D "CMAKE_INTDIR=\\"Debug\\"" /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /GR /Fo"cmTC_d95a2.dir\\Debug\\\\" /Fd"cmTC_d95a2.dir\\Debug\\vc143.pdb" /external:W1 /Gd /TP /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-4.0\\Modules\\CMakeCXXCompilerABI.cpp"
+          Microsoft (R) C/C++ Optimizing Compiler versione 19.44.35211 per x64
           Copyright (C) Microsoft Corporation. Tutti i diritti  sono riservati.
-          cl /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D "CMAKE_INTDIR=\\"Debug\\"" /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /GR /Fo"cmTC_e6b76.dir\\Debug\\\\" /Fd"cmTC_e6b76.dir\\Debug\\vc143.pdb" /external:W1 /Gd /TP /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-4.0\\Modules\\CMakeCXXCompilerABI.cpp"
+          cl /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D "CMAKE_INTDIR=\\"Debug\\"" /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /GR /Fo"cmTC_d95a2.dir\\Debug\\\\" /Fd"cmTC_d95a2.dir\\Debug\\vc143.pdb" /external:W1 /Gd /TP /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-4.0\\Modules\\CMakeCXXCompilerABI.cpp"
           CMakeCXXCompilerABI.cpp
         Link:
-          C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise\\VC\\Tools\\MSVC\\14.43.34808\\bin\\HostX64\\x64\\link.exe /ERRORREPORT:QUEUE /OUT:"C:\\Users\\marco\\source\\repos\\ShadPKG\\build\\CMakeFiles\\CMakeScratch\\TryCompile-9r1gj7\\Debug\\cmTC_e6b76.exe" /INCREMENTAL /ILK:"cmTC_e6b76.dir\\Debug\\cmTC_e6b76.ilk" /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/marco/source/repos/ShadPKG/build/CMakeFiles/CMakeScratch/TryCompile-9r1gj7/Debug/cmTC_e6b76.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"C:/Users/marco/source/repos/ShadPKG/build/CMakeFiles/CMakeScratch/TryCompile-9r1gj7/Debug/cmTC_e6b76.lib" /MACHINE:X64  /machine:x64 cmTC_e6b76.dir\\Debug\\CMakeCXXCompilerABI.obj
-          cmTC_e6b76.vcxproj -> C:\\Users\\marco\\source\\repos\\ShadPKG\\build\\CMakeFiles\\CMakeScratch\\TryCompile-9r1gj7\\Debug\\cmTC_e6b76.exe
+          C:\\Program Files (x86)\\Microsoft Visual Studio\\2022\\BuildTools\\VC\\Tools\\MSVC\\14.44.35207\\bin\\HostX64\\x64\\link.exe /ERRORREPORT:QUEUE /OUT:"C:\\Users\\marco\\source\\repos\\ShadPKG\\build\\CMakeFiles\\CMakeScratch\\TryCompile-hunnjx\\Debug\\cmTC_d95a2.exe" /INCREMENTAL /ILK:"cmTC_d95a2.dir\\Debug\\cmTC_d95a2.ilk" /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/marco/source/repos/ShadPKG/build/CMakeFiles/CMakeScratch/TryCompile-hunnjx/Debug/cmTC_d95a2.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"C:/Users/marco/source/repos/ShadPKG/build/CMakeFiles/CMakeScratch/TryCompile-hunnjx/Debug/cmTC_d95a2.lib" /MACHINE:X64  /machine:x64 cmTC_d95a2.dir\\Debug\\CMakeCXXCompilerABI.obj
+          cmTC_d95a2.vcxproj -> C:\\Users\\marco\\source\\repos\\ShadPKG\\build\\CMakeFiles\\CMakeScratch\\TryCompile-hunnjx\\Debug\\cmTC_d95a2.exe
         FinalizeBuildStatus:
-          Eliminazione del file "cmTC_e6b76.dir\\Debug\\cmTC_e6b76.tlog\\unsuccessfulbuild" in corso.
-          Aggiornamento timestamp di "cmTC_e6b76.dir\\Debug\\cmTC_e6b76.tlog\\cmTC_e6b76.lastbuildstate".
-        Compilazione progetto "C:\\Users\\marco\\source\\repos\\ShadPKG\\build\\CMakeFiles\\CMakeScratch\\TryCompile-9r1gj7\\cmTC_e6b76.vcxproj" (destinazioni predefinite) completata.
+          Eliminazione del file "cmTC_d95a2.dir\\Debug\\cmTC_d95a2.tlog\\unsuccessfulbuild" in corso.
+          Aggiornamento timestamp di "cmTC_d95a2.dir\\Debug\\cmTC_d95a2.tlog\\cmTC_d95a2.lastbuildstate".
+        Compilazione progetto "C:\\Users\\marco\\source\\repos\\ShadPKG\\build\\CMakeFiles\\CMakeScratch\\TryCompile-hunnjx\\cmTC_d95a2.vcxproj" (destinazioni predefinite) completata.
         
         Compilazione completata.
             Avvisi: 0
             Errori: 0
         
-        Tempo trascorso 00:00:00.46
+        Tempo trascorso 00:00:00.47
         
       exitCode: 0
   -
@@ -285,7 +285,7 @@ events:
       Parsed CXX implicit link information:
         link line regex: [^( *|.*[/\\])(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)|link\\.exe|lld-link(\\.exe)?|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\\]+-)?ld|collect2)[^/\\]*( |$)]
         linker tool regex: [^[ 	]*(->|")?[ 	]*(([^"]*[/\\])?(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)|link\\.exe|lld-link(\\.exe)?))("|,| |$)]
-        linker tool for 'CXX': C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Tools/MSVC/14.43.34808/bin/HostX64/x64/link.exe
+        linker tool for 'CXX': C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/HostX64/x64/link.exe
         implicit libs: []
         implicit objs: []
         implicit dirs: []
@@ -300,7 +300,7 @@ events:
       - "C:/Program Files/CMake/share/cmake-4.0/Modules/CMakeTestCXXCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
       - "CMakeLists.txt:2 (project)"
     message: |
-      Running the CXX compiler's linker: "C:/Program Files/Microsoft Visual Studio/2022/Enterprise/VC/Tools/MSVC/14.43.34808/bin/HostX64/x64/link.exe" "-v"
-      Microsoft (R) Incremental Linker Version 14.43.34808.0
+      Running the CXX compiler's linker: "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.44.35207/bin/HostX64/x64/link.exe" "-v"
+      Microsoft (R) Incremental Linker Version 14.44.35211.0
       Copyright (C) Microsoft Corporation.  All rights reserved.
 ...

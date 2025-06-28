@@ -9,8 +9,14 @@
 #include "core/file_format/pkg_type.h"
 #include <iostream>
 #include "simple_log.h"
+#include <thread>
+#include <atomic>
+#include <mutex>
+#include <iomanip>
+#include <sstream>
+#include <chrono>
 
-static void DecompressPFSC(std::span<char> compressed_data, std::span<char> decompressed_data) {
+static void DecompressPFSC(char* compressed_data, size_t compressed_size, char* decompressed_data, size_t decompressed_size) {
     z_stream decompressStream;
     decompressStream.zalloc = Z_NULL;
     decompressStream.zfree = Z_NULL;
@@ -20,10 +26,10 @@ static void DecompressPFSC(std::span<char> compressed_data, std::span<char> deco
         // std::cerr << "Error initializing zlib for deflation." << std::endl;
     }
 
-    decompressStream.avail_in = compressed_data.size();
-    decompressStream.next_in = reinterpret_cast<unsigned char*>(compressed_data.data());
-    decompressStream.avail_out = decompressed_data.size();
-    decompressStream.next_out = reinterpret_cast<unsigned char*>(decompressed_data.data());
+    decompressStream.avail_in = static_cast<uInt>(compressed_size);
+    decompressStream.next_in = reinterpret_cast<unsigned char*>(compressed_data);
+    decompressStream.avail_out = static_cast<uInt>(decompressed_size);
+    decompressStream.next_out = reinterpret_cast<unsigned char*>(decompressed_data);
 
     if (inflate(&decompressStream, Z_FINISH)) {
     }
@@ -32,11 +38,11 @@ static void DecompressPFSC(std::span<char> compressed_data, std::span<char> deco
     }
 }
 
-u32 GetPFSCOffset(std::span<const u8> pfs_image) {
+u32 GetPFSCOffset(const u8* pfs_image, size_t size) {
     static constexpr u32 PfscMagic = 0x43534650;
     u32 value;
-    for (u32 i = 0x20000; i < pfs_image.size(); i += 0x10000) {
-        std::memcpy(&value, &pfs_image[i], sizeof(u32));
+    for (u32 i = 0x20000; i < size; i += 0x10000) {
+        std::memcpy(&value, pfs_image + i, sizeof(u32));
         if (value == PfscMagic)
             return i;
     }
@@ -48,15 +54,19 @@ PKG::PKG() = default;
 PKG::~PKG() = default;
 
 bool PKG::Open(const std::filesystem::path& filepath, std::string& failreason) {
+    simple_log("[DEBUG] Inizio PKG::Open su " + filepath.string());
     Common::FS::IOFile file(filepath, Common::FS::FileAccessMode::Read);
     if (!file.IsOpen()) {
+        simple_log("[ERROR] File non aperto: " + filepath.string());
         return false;
     }
     pkgSize = file.GetSize();
 
     file.Read(pkgheader);
-    if (pkgheader.magic != 0x7F434E54)
+    if (pkgheader.magic != 0x7F434E54) {
+        simple_log("[ERROR] Magic non valido nel PKG header");
         return false;
+    }
 
     for (const auto& flag : flagNames) {
         if (isFlagSet(pkgheader.pkg_content_flags, flag.first)) {
@@ -73,11 +83,15 @@ bool PKG::Open(const std::filesystem::path& filepath, std::string& failreason) {
     u32 offset = pkgheader.pkg_table_entry_offset;
     u32 n_files = pkgheader.pkg_table_entry_count;
 
+    simple_log("[DEBUG] Table entry offset: " + std::to_string(offset) + ", count: " + std::to_string(n_files));
+
     if (!file.Seek(offset)) {
         failreason = "Failed to seek to PKG table entry offset";
+        simple_log("[ERROR] " + failreason);
         return false;
     }
 
+    pkgEntries.clear();
     for (int i = 0; i < n_files; i++) {
         PKGEntry entry{};
         file.Read(entry.id);
@@ -87,13 +101,15 @@ bool PKG::Open(const std::filesystem::path& filepath, std::string& failreason) {
         file.Read(entry.offset);
         file.Read(entry.size);
         file.Seek(8, Common::FS::SeekOrigin::CurrentPosition);
-
+        pkgEntries.push_back(entry);
         // Try to figure out the name
         const auto name = GetEntryNameByType(entry.id);
+        simple_log("[DEBUG] Entry " + std::to_string(i) + ": id=" + std::to_string(entry.id) + ", name=" + std::string(name));
         if (name == "param.sfo") {
             sfo.clear();
             if (!file.Seek(entry.offset)) {
                 failreason = "Failed to seek to param.sfo offset";
+                simple_log("[ERROR] " + failreason);
                 return false;
             }
             sfo.resize(entry.size);
@@ -102,34 +118,51 @@ bool PKG::Open(const std::filesystem::path& filepath, std::string& failreason) {
     }
     file.Close();
 
+    simple_log("[DEBUG] Fine PKG::Open");
     return true;
 }
 
 bool PKG::Extract(const std::filesystem::path& filepath, const std::filesystem::path& extract,
                   std::string& failreason) {
+    simple_log("[DEBUG] Inizio PKG::Extract su " + filepath.string() + " -> " + extract.string());
     extract_path = extract;
     pkgpath = filepath;
     Common::FS::IOFile file(filepath, Common::FS::FileAccessMode::Read);
     if (!file.IsOpen()) {
+        simple_log("[ERROR] File non aperto in Extract: " + filepath.string());
         return false;
     }
     pkgSize = file.GetSize();
     file.ReadRaw<u8>(&pkgheader, sizeof(PKGHeader));
 
-    if (pkgheader.magic != 0x7F434E54)
+    simple_log("[DEBUG] pkgheader.magic: " + std::to_string(pkgheader.magic));
+    simple_log("[DEBUG] pkgheader.pkg_size: " + std::to_string(pkgheader.pkg_size));
+    simple_log("[DEBUG] pkgheader.pkg_content_size: " + std::to_string(pkgheader.pkg_content_size));
+    simple_log("[DEBUG] pkgheader.pkg_content_offset: " + std::to_string(pkgheader.pkg_content_offset));
+    simple_log("[DEBUG] pkgheader.pkg_table_entry_offset: " + std::to_string(pkgheader.pkg_table_entry_offset));
+    simple_log("[DEBUG] pkgheader.pkg_table_entry_count: " + std::to_string(pkgheader.pkg_table_entry_count));
+    simple_log("[DEBUG] pkgheader.pfs_image_offset: " + std::to_string(pkgheader.pfs_image_offset));
+    simple_log("[DEBUG] pkgheader.pfs_cache_size: " + std::to_string(pkgheader.pfs_cache_size));
+
+    if (pkgheader.magic != 0x7F434E54) {
+        simple_log("[ERROR] Magic non valido in Extract");
         return false;
+    }
 
     if (pkgheader.pkg_size > pkgSize) {
         failreason = "PKG file size is different";
+        simple_log("[ERROR] " + failreason);
         return false;
     }
     if ((pkgheader.pkg_content_size + pkgheader.pkg_content_offset) > pkgheader.pkg_size) {
         failreason = "Content size is bigger than pkg size";
+        simple_log("[ERROR] " + failreason);
         return false;
     }
 
     u32 offset = pkgheader.pkg_table_entry_offset;
     u32 n_files = pkgheader.pkg_table_entry_count;
+    simple_log("[DEBUG] Table entry offset: " + std::to_string(offset) + ", count: " + std::to_string(n_files));
 
     std::array<u8, 64> concatenated_ivkey_dk3;
     std::array<u8, 32> seed_digest;
@@ -171,7 +204,7 @@ bool PKG::Extract(const std::filesystem::path& filepath, const std::filesystem::
             std::vector<u8> data;
             data.resize(entry.size);
             file.ReadRaw<u8>(data.data(), entry.size);
-            out.WriteRaw<u8>(data.data(), entry.size);
+            out.WriteRaw<u8>(data.data(), data.size());
             out.Close();
 
             file.Seek(currentPos);
@@ -220,7 +253,7 @@ bool PKG::Extract(const std::filesystem::path& filepath, const std::filesystem::
         std::vector<u8> data;
         data.resize(entry.size);
         file.ReadRaw<u8>(data.data(), entry.size);
-        out.WriteRaw<u8>(data.data(), entry.size);
+        out.WriteRaw<u8>(data.data(), data.size());
         out.Close();
 
         // Decrypt Np stuff and overwrite.
@@ -232,20 +265,17 @@ bool PKG::Extract(const std::filesystem::path& filepath, const std::filesystem::
                 return false;
             }
 
-            std::vector<u8> data;
-            data.resize(entry.size);
-            file.ReadRaw<u8>(data.data(), entry.size);
-
-            std::span<u8> cipherNp(data.data(), entry.size);
             std::array<u8, 64> concatenated_ivkey_dk3_;
             std::memcpy(concatenated_ivkey_dk3_.data(), &entry, sizeof(entry));
             std::memcpy(concatenated_ivkey_dk3_.data() + sizeof(entry), dk3_.data(), sizeof(dk3_));
             PKG::crypto.ivKeyHASH256(concatenated_ivkey_dk3_, ivKey);
-            PKG::crypto.aesCbcCfb128DecryptEntry(ivKey, cipherNp, decNp);
-
-            Common::FS::IOFile out(extract_path / "sce_sys" / name,
-                                   Common::FS::FileAccessMode::Write);
-            out.Write(decNp);
+            PKG::crypto.aesCbcCfb128DecryptEntry(
+                std::span<const CryptoPP::byte, 32>(reinterpret_cast<const CryptoPP::byte*>(ivKey.data()), 32),
+                std::span<CryptoPP::byte>(reinterpret_cast<CryptoPP::byte*>(data.data()), entry.size),
+                std::span<CryptoPP::byte>(reinterpret_cast<CryptoPP::byte*>(decNp.data()), decNp.size())
+            );
+            Common::FS::IOFile out(extract_path / "sce_sys" / name, Common::FS::FileAccessMode::Write);
+            out.WriteRaw<u8>(decNp.data(), decNp.size());
             out.Close();
         }
 
@@ -277,7 +307,7 @@ bool PKG::Extract(const std::filesystem::path& filepath, const std::filesystem::
         PKG::crypto.decryptPFS(dataKey, tweakKey, pfs_encrypted, pfs_decrypted, 0);
 
         // Retrieve PFSC from decrypted pfs_image.
-        pfsc_offset = GetPFSCOffset(pfs_decrypted);
+        pfsc_offset = GetPFSCOffset(pfs_decrypted.data(), pfs_decrypted.size());
         std::memcpy(pfsc.data(), pfs_decrypted.data() + pfsc_offset, length - pfsc_offset);
 
         PFSCHdr pfsChdr;
@@ -300,6 +330,7 @@ bool PKG::Extract(const std::filesystem::path& filepath, const std::filesystem::
     std::vector<char> decompressedData(0x10000);
 
     // Get iNdoes and Dirents.
+    simple_log("[DEBUG] Inizio parsing blocchi PFS, num_blocks: " + std::to_string(num_blocks));
     for (int i = 0; i < num_blocks; i++) {
         const u64 sectorOffset = sectorMap[i];
         const u64 sectorSize = sectorMap[i + 1] - sectorOffset;
@@ -310,10 +341,11 @@ bool PKG::Extract(const std::filesystem::path& filepath, const std::filesystem::
         if (sectorSize == 0x10000) // Uncompressed data
             std::memcpy(decompressedData.data(), compressedData.data(), 0x10000);
         else if (sectorSize < 0x10000) // Compressed data
-            DecompressPFSC(compressedData, decompressedData);
+            DecompressPFSC(compressedData.data(), compressedData.size(), decompressedData.data(), decompressedData.size());
 
         if (i == 0) {
             std::memcpy(&ndinode, decompressedData.data() + 0x30, 4); // number of folders and files
+            simple_log("[DEBUG] ndinode (num folder/file): " + std::to_string(ndinode));
         }
 
         int occupied_blocks =
@@ -329,6 +361,7 @@ bool PKG::Extract(const std::filesystem::path& filepath, const std::filesystem::
                     break;
                 }
                 iNodeBuf.push_back(node);
+                simple_log("[DEBUG] iNode aggiunto: Mode=" + std::to_string(node.Mode));
             }
         }
 
@@ -337,6 +370,7 @@ bool PKG::Extract(const std::filesystem::path& filepath, const std::filesystem::
         const std::string_view flat_path_table(&decompressedData[0x10], 15);
         if (flat_path_table == "flat_path_table") {
             uroot_reached = true;
+            simple_log("[DEBUG] flat_path_table trovato, uroot_reached=true");
         }
 
         if (uroot_reached) {
@@ -344,6 +378,7 @@ bool PKG::Extract(const std::filesystem::path& filepath, const std::filesystem::
                 Dirent dirent;
                 std::memcpy(&dirent, &decompressedData[i], sizeof(dirent));
                 ent_size = dirent.entsize;
+                simple_log("[DEBUG] Dirent uroot: ino=" + std::to_string(dirent.ino) + ", entsize=" + std::to_string(dirent.entsize));
                 if (dirent.ino != 0) {
                     ndinode_counter++;
                 } else {
@@ -369,6 +404,7 @@ bool PKG::Extract(const std::filesystem::path& filepath, const std::filesystem::
         const std::string_view dotdot(&decompressedData[0x28], 2);
         if (dot == '.' && dotdot == "..") {
             dinode_reached = true;
+            simple_log("[DEBUG] dinode_reached=true");
         }
 
         // Get folder and file names.
@@ -380,6 +416,7 @@ bool PKG::Extract(const std::filesystem::path& filepath, const std::filesystem::
 
                 // Stop here and continue the main loop
                 if (dirent.ino == 0) {
+                    simple_log("[DEBUG] Dirent.ino==0, break ciclo");
                     break;
                 }
 
@@ -388,12 +425,12 @@ bool PKG::Extract(const std::filesystem::path& filepath, const std::filesystem::
                 table.name = std::string(dirent.name, dirent.namelen);
                 table.inode = dirent.ino;
                 table.type = dirent.type;
-                simple_log("[PKG] Entry trovata: nome=" + table.name + " | tipo=" + std::to_string(table.type) + " | inode=" + std::to_string(table.inode));
+                simple_log("[DEBUG] fsTable aggiunta: nome=" + table.name + ", inode=" + std::to_string(table.inode) + ", type=" + std::to_string(table.type));
 
                 if (table.type == PFS_CURRENT_DIR) {
                     current_dir = extractPaths[table.inode];
                 }
-                extractPaths[table.inode] = current_dir / std::filesystem::path(table.name);
+                extractPaths[table.inode] = extract_path / (current_dir / std::filesystem::path(table.name));
 
                 if (table.type == PFS_FILE || table.type == PFS_DIR) {
                     if (table.type == PFS_DIR) { // Create dirs.
@@ -405,11 +442,54 @@ bool PKG::Extract(const std::filesystem::path& filepath, const std::filesystem::
                 }
             }
             if (end_reached) {
+                simple_log("[DEBUG] end_reached=true, break ciclo blocchi");
                 break;
             }
         }
     }
+    simple_log("[DEBUG] Fine parsing blocchi PFS");
     return true;
+}
+
+void PKG::ExtractAllFilesWithProgress() {
+    const size_t num_files = fsTable.size();
+    const size_t max_threads = std::min<size_t>(8, std::thread::hardware_concurrency());
+    std::atomic<size_t> files_done{0};
+    std::mutex print_mutex;
+
+    auto print_progress = [&](size_t done) {
+        float percent = (float)done / (float)num_files * 100.0f;
+        int barWidth = 40;
+        int pos = (int)(barWidth * percent / 100.0f);
+        std::ostringstream oss;
+        oss << "[";
+        for (int i = 0; i < barWidth; ++i) oss << (i < pos ? "=" : (i == pos ? ">" : " "));
+        oss << "] ";
+        oss << std::setw(3) << int(percent) << "% ";
+        oss << done << "/" << num_files << " estratti";
+        std::lock_guard<std::mutex> lock(print_mutex);
+        std::cout << "\r" << std::string(80, ' ') << "\r" << oss.str() << std::flush;
+    };
+
+    auto extract_worker = [&](size_t start, size_t end) {
+        for (size_t i = start; i < end; ++i) {
+            ExtractFiles(i);
+            size_t done = ++files_done;
+            if (done % 1 == 0 || done == num_files) print_progress(done);
+        }
+    };
+
+    std::vector<std::thread> threads;
+    size_t batch = (num_files + max_threads - 1) / max_threads;
+    for (size_t t = 0; t < max_threads; ++t) {
+        size_t start = t * batch;
+        size_t end = std::min(num_files, start + batch);
+        if (start < end)
+            threads.emplace_back(extract_worker, start, end);
+    }
+    for (auto& th : threads) th.join();
+    print_progress(num_files);
+    std::cout << std::endl;
 }
 
 void PKG::ExtractFiles(const int index) {
@@ -423,6 +503,12 @@ void PKG::ExtractFiles(const int index) {
         std::cout << "[DEBUG] Path: (not found in extractPaths)" << std::endl;
     }
     if (inode_type == PFS_FILE) {
+        // Creo la directory di destinazione solo per il file che sto per scrivere
+        try {
+            std::filesystem::create_directories(extractPaths[inode_number].parent_path());
+        } catch (const std::exception& e) {
+            simple_log(std::string("[ERROR] Creazione directory fallita: ") + e.what());
+        }
         int sector_loc = iNodeBuf[inode_number].loc;
         int nblocks = iNodeBuf[inode_number].Blocks;
         int bsize = iNodeBuf[inode_number].Size;
@@ -464,20 +550,46 @@ void PKG::ExtractFiles(const int index) {
             if (sectorSize == 0x10000) // Uncompressed data
                 std::memcpy(decompressedData.data(), compressedData.data(), 0x10000);
             else if (sectorSize < 0x10000) // Compressed data
-                DecompressPFSC(compressedData, decompressedData);
+                DecompressPFSC(compressedData.data(), compressedData.size(), decompressedData.data(), decompressedData.size());
 
             size_decompressed += 0x10000;
 
             if (j < nblocks - 1) {
-                inflated.WriteRaw<u8>(decompressedData.data(), decompressedData.size());
+                inflated.WriteRaw<u8>(reinterpret_cast<const u8*>(decompressedData.data()), decompressedData.size());
             } else {
                 // This is to remove the zeros at the end of the file.
                 const u32 write_size = decompressedData.size() - (size_decompressed - bsize);
-                inflated.WriteRaw<u8>(decompressedData.data(), write_size);
+                inflated.WriteRaw<u8>(reinterpret_cast<const u8*>(decompressedData.data()), write_size);
             }
         }
         pkgFile.Close();
         inflated.Close();
+    } else if (inode_name.empty()) {
+        // Estrai anche le entry senza nome (unknown)
+        std::ostringstream oss;
+        oss << "entry_0x" << std::hex << inode_number << ".bin";
+        std::filesystem::path outpath = extract_path / oss.str();
+        // Creo la directory di destinazione solo per il file che sto per scrivere
+        try {
+            std::filesystem::create_directories(outpath.parent_path());
+        } catch (const std::exception& e) {
+            simple_log(std::string("[ERROR] Creazione directory fallita: ") + e.what());
+        }
+        // Cerca la PKGEntry corrispondente
+        for (const auto& entry : pkgEntries) {
+            if (entry.id == static_cast<u32>(inode_number)) {
+                Common::FS::IOFile pkgFile;
+                pkgFile.Open(pkgpath, Common::FS::FileAccessMode::Read);
+                pkgFile.Seek(entry.offset);
+                std::vector<u8> data(entry.size);
+                pkgFile.ReadRaw<u8>(data.data(), entry.size);
+                Common::FS::IOFile out(outpath, Common::FS::FileAccessMode::Write);
+                out.WriteRaw<u8>(data.data(), data.size());
+                out.Close();
+                pkgFile.Close();
+                break;
+            }
+        }
     }
 }
 
@@ -492,8 +604,10 @@ std::vector<std::string> PKG::GetFileList() const {
 }
 
 std::vector<std::tuple<std::string, u32, u32>> PKG::GetAllEntries() const {
+    simple_log("[DEBUG] Chiamata GetAllEntries, fsTable size: " + std::to_string(fsTable.size()));
     std::vector<std::tuple<std::string, u32, u32>> entries;
     for (const auto& entry : fsTable) {
+        simple_log("[DEBUG] fsTable entry: nome=" + entry.name + ", inode=" + std::to_string(entry.inode) + ", type=" + std::to_string(entry.type));
         entries.emplace_back(entry.name, entry.inode, entry.type);
     }
     return entries;

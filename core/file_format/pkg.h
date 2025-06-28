@@ -107,6 +107,7 @@ public:
     void ExtractFiles(const int index);
     bool Extract(const std::filesystem::path& filepath, const std::filesystem::path& extract,
                  std::string& failreason);
+    void ExtractAllFilesWithProgress();
 
     std::vector<u8> sfo;
 
@@ -184,4 +185,6 @@ private:
     std::filesystem::path pkgpath;
     std::filesystem::path current_dir;
     std::filesystem::path extract_path;
+
+    std::vector<PKGEntry> pkgEntries;
 };
