@@ -135,11 +135,16 @@ public:
             LOG_WARNING(Log, "Reinitializing logging backend");
             return;
         }
-        const auto& log_dir = GetUserPath(PathType::LogDir);
-        std::filesystem::create_directories(log_dir);
+        // Non creare directory utente: rispetta il nome file passato e usa la CWD se vuoto
         Filter filter;
         filter.ParseFilterString(Config::getLogFilter());
-        instance = std::unique_ptr<Impl, decltype(&Deleter)>(new Impl(log_dir / LOG_FILE, filter),
+        std::filesystem::path file_backend_path;
+        if (!log_file.empty()) {
+            file_backend_path = std::filesystem::path(std::string(log_file));
+        } else {
+            file_backend_path = LOG_FILE; // Crea il file nella directory corrente
+        }
+        instance = std::unique_ptr<Impl, decltype(&Deleter)>(new Impl(file_backend_path, filter),
                                                              Deleter);
         initialization_in_progress_suppress_logging = false;
     }

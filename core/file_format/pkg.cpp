@@ -382,18 +382,10 @@ bool PKG::Extract(const std::filesystem::path& filepath, const std::filesystem::
                 if (dirent.ino != 0) {
                     ndinode_counter++;
                 } else {
-                    // Set the the folder according to the current inode.
-                    // Can be 2 or more (rarely)
-                    auto parent_path = extract_path.parent_path();
-                    auto title_id = GetTitleID();
-
-                    if (parent_path.filename() != title_id &&
-                        !fmt::UTF(extract_path.u8string()).data.ends_with("-UPDATE")) {
-                        extractPaths[ndinode_counter] = parent_path / title_id;
-                    } else {
-                        // DLCs path has different structure
-                        extractPaths[ndinode_counter] = extract_path;
-                    }
+                    // Imposta la cartella base per l'estrazione.
+                    // NON forzare parent_path/TitleID: rispetta la directory di output scelta dall'utente.
+                    // Tutto verrà estratto sotto extract_path.
+                    extractPaths[ndinode_counter] = extract_path;
                     uroot_reached = false;
                     break;
                 }
@@ -611,4 +603,260 @@ std::vector<std::tuple<std::string, u32, u32>> PKG::GetAllEntries() const {
         entries.emplace_back(entry.name, entry.inode, entry.type);
     }
     return entries;
+}
+
+bool PKG::Scan(const std::filesystem::path& filepath, std::string& failreason) {
+    simple_log(std::string("[DEBUG] Inizio PKG::Scan su ") + filepath.string());
+    extract_path = "."; // base relativa per ricostruire i path
+    pkgpath = filepath;
+
+    Common::FS::IOFile file(filepath, Common::FS::FileAccessMode::Read);
+    if (!file.IsOpen()) {
+        failreason = "Impossibile aprire il file";
+        simple_log("[ERROR] " + failreason + ": " + filepath.string());
+        return false;
+    }
+    pkgSize = file.GetSize();
+    file.ReadRaw<u8>(&pkgheader, sizeof(PKGHeader));
+
+    if (pkgheader.magic != 0x7F434E54) {
+        failreason = "Magic PKG non valido";
+        simple_log("[ERROR] " + failreason);
+        return false;
+    }
+
+    // Flags leggibili
+    pkgFlags.clear();
+    for (const auto& flag : flagNames) {
+        if (isFlagSet(pkgheader.pkg_content_flags, flag.first)) {
+            if (!pkgFlags.empty()) pkgFlags += ", ";
+            pkgFlags += flag.second;
+        }
+    }
+
+    // TitleID
+    file.Seek(0x47);
+    file.Read(pkgTitleID);
+
+    // Lettura entries tabella per trovare param.sfo ecc. (no scritture su disco)
+    u32 offset = pkgheader.pkg_table_entry_offset;
+    u32 n_files = pkgheader.pkg_table_entry_count;
+    if (!file.Seek(offset)) {
+        failreason = "Seek fallito alla tabella entry";
+        return false;
+    }
+    pkgEntries.clear();
+    for (u32 i = 0; i < n_files; i++) {
+        PKGEntry entry{};
+        file.Read(entry.id);
+        file.Read(entry.filename_offset);
+        file.Read(entry.flags1);
+        file.Read(entry.flags2);
+        file.Read(entry.offset);
+        file.Read(entry.size);
+        file.Seek(8, Common::FS::SeekOrigin::CurrentPosition);
+        pkgEntries.push_back(entry);
+    }
+
+    // Seed e decrypt PFS come in Extract(), ma senza scritture file.
+    if (pkgheader.pkg_size > pkgSize) {
+        failreason = "Dimensione PKG inconsistente";
+        return false;
+    }
+    if ((pkgheader.pkg_content_size + pkgheader.pkg_content_offset) > pkgheader.pkg_size) {
+        failreason = "Content size oltre pkg size";
+        return false;
+    }
+
+    // Avanza fino a popolare sectorMap come in Extract()
+    // Leggi strutture preliminari necessarie a derivare le chiavi
+    // e popolare ivKey, imgKey, ekpfsKey.
+    // Riusa lo stesso codice di Extract per le voci necessarie.
+
+    // Riposizionarsi sulla tabella entries
+    file.Seek(pkgheader.pkg_table_entry_offset);
+    std::array<u8, 64> concatenated_ivkey_dk3;
+    std::array<u8, 32> seed_digest;
+    std::array<std::array<u8, 32>, 7> digest1;
+    std::array<std::array<u8, 256>, 7> key1;
+    std::array<u8, 256> imgkeydata;
+
+    for (u32 i = 0; i < n_files; i++) {
+        PKGEntry entry{};
+        file.Read(entry.id);
+        file.Read(entry.filename_offset);
+        file.Read(entry.flags1);
+        file.Read(entry.flags2);
+        file.Read(entry.offset);
+        file.Read(entry.size);
+        file.Seek(8, Common::FS::SeekOrigin::CurrentPosition);
+
+        auto currentPos = file.Tell();
+        if (entry.id == 0x10) { // ENTRY_KEYS
+            file.Seek(entry.offset);
+            file.Read(seed_digest);
+            for (int j = 0; j < 7; j++) file.Read(digest1[j]);
+            for (int j = 0; j < 7; j++) file.Read(key1[j]);
+            PKG::crypto.RSA2048Decrypt(dk3_, key1[3], true); // decrypt DK3
+        } else if (entry.id == 0x20) { // IMAGE_KEY (IV_KEY)
+            file.Seek(entry.offset);
+            file.Read(imgkeydata);
+            std::memcpy(concatenated_ivkey_dk3.data(), &entry, sizeof(entry));
+            std::memcpy(concatenated_ivkey_dk3.data() + sizeof(entry), dk3_.data(), sizeof(dk3_));
+            PKG::crypto.ivKeyHASH256(concatenated_ivkey_dk3, ivKey);
+            PKG::crypto.aesCbcCfb128Decrypt(ivKey, imgkeydata, imgKey);
+            PKG::crypto.RSA2048Decrypt(ekpfsKey, imgKey, false);
+        }
+        file.Seek(currentPos);
+    }
+
+    // Seed
+    std::array<u8, 16> seed;
+    if (!file.Seek(pkgheader.pfs_image_offset + 0x370)) {
+        failreason = "Seek fallito a PFS seed";
+        return false;
+    }
+    file.Read(seed);
+    PKG::crypto.PfsGenCryptoKey(ekpfsKey, seed, dataKey, tweakKey);
+
+    const u32 length = pkgheader.pfs_cache_size * 0x2;
+    int num_blocks = 0;
+    std::vector<u8> pfsc(length);
+    if (length != 0) {
+        std::vector<u8> pfs_encrypted(length);
+        file.Seek(pkgheader.pfs_image_offset);
+        file.Read(pfs_encrypted);
+        file.Close();
+
+        std::vector<u8> pfs_decrypted(length);
+        PKG::crypto.decryptPFS(dataKey, tweakKey, pfs_encrypted, pfs_decrypted, 0);
+
+        pfsc_offset = GetPFSCOffset(pfs_decrypted.data(), pfs_decrypted.size());
+        std::memcpy(pfsc.data(), pfs_decrypted.data() + pfsc_offset, length - pfsc_offset);
+
+        PFSCHdr pfsChdr;
+        std::memcpy(&pfsChdr, pfsc.data(), sizeof(pfsChdr));
+        num_blocks = (int)(pfsChdr.data_length / pfsChdr.block_sz2);
+        sectorMap.resize(num_blocks + 1);
+        for (int i = 0; i < num_blocks + 1; i++) {
+            std::memcpy(&sectorMap[i], pfsc.data() + pfsChdr.block_offsets + i * 8, 8);
+        }
+    }
+
+    // Parse iNodes e Dirents per popolare fsTable/extractPaths
+    iNodeBuf.clear();
+    fsTable.clear();
+    extractPaths.clear();
+    u32 ent_size = 0;
+    u32 ndinode = 0;
+    int ndinode_counter = 0;
+    bool dinode_reached = false;
+    bool uroot_reached = false;
+    std::vector<char> compressedData;
+    std::vector<char> decompressedData(0x10000);
+
+    for (int i = 0; i < (int)sectorMap.size() - 1; i++) {
+        const u64 sectorOffset = sectorMap[i];
+        const u64 sectorSize = sectorMap[i + 1] - sectorOffset;
+        compressedData.resize(sectorSize);
+        std::memcpy(compressedData.data(), pfsc.data() + sectorOffset, sectorSize);
+        if (sectorSize == 0x10000)
+            std::memcpy(decompressedData.data(), compressedData.data(), 0x10000);
+        else if (sectorSize < 0x10000)
+            DecompressPFSC(compressedData.data(), compressedData.size(), decompressedData.data(), decompressedData.size());
+
+        if (i == 0) {
+            std::memcpy(&ndinode, decompressedData.data() + 0x30, 4);
+        }
+
+        int occupied_blocks = (ndinode * 0xA8) / 0x10000;
+        if (((ndinode * 0xA8) % 0x10000) != 0) occupied_blocks += 1;
+
+        if (i >= 1 && i <= occupied_blocks) {
+            for (int p = 0; p < 0x10000; p += 0xA8) {
+                Inode node;
+                std::memcpy(&node, &decompressedData[p], sizeof(node));
+                if (node.Mode == 0) break;
+                iNodeBuf.push_back(node);
+            }
+        }
+
+        const std::string_view flat_path_table(&decompressedData[0x10], 15);
+        if (flat_path_table == "flat_path_table") {
+            uroot_reached = true;
+        }
+
+        if (uroot_reached) {
+            for (int k = 0; k < 0x10000; k += ent_size) {
+                Dirent dirent;
+                std::memcpy(&dirent, &decompressedData[k], sizeof(dirent));
+                ent_size = dirent.entsize;
+                if (dirent.ino != 0) {
+                    ndinode_counter++;
+                } else {
+                    extractPaths[ndinode_counter] = extract_path;
+                    uroot_reached = false;
+                    break;
+                }
+            }
+        }
+
+        const char dot = decompressedData[0x10];
+        const std::string_view dotdot(&decompressedData[0x28], 2);
+        if (dot == '.' && dotdot == "..") {
+            dinode_reached = true;
+        }
+
+        bool end_reached = false;
+        if (dinode_reached) {
+            for (int j = 0; j < 0x10000; j += ent_size) {
+                Dirent dirent;
+                std::memcpy(&dirent, &decompressedData[j], sizeof(dirent));
+                if (dirent.ino == 0) break;
+                ent_size = dirent.entsize;
+                auto& table = fsTable.emplace_back();
+                table.name = std::string(dirent.name, dirent.namelen);
+                table.inode = dirent.ino;
+                table.type = dirent.type;
+                if (table.type == PFS_CURRENT_DIR) {
+                    current_dir = extractPaths[table.inode];
+                }
+                extractPaths[table.inode] = extract_path / (current_dir / std::filesystem::path(table.name));
+                if (table.type == PFS_FILE || table.type == PFS_DIR) {
+                    if (table.type == PFS_DIR) {
+                        // niente scritture su disco in Scan
+                    }
+                    ndinode_counter++;
+                    if ((ndinode_counter + 1) == ndinode) end_reached = true;
+                }
+            }
+            if (end_reached) break;
+        }
+    }
+    simple_log("[DEBUG] Fine PKG::Scan, entries: " + std::to_string(fsTable.size()));
+    return true;
+}
+
+std::vector<PKG::EntryInfo> PKG::GetEntriesInfo() const {
+    std::vector<EntryInfo> out;
+    out.reserve(fsTable.size());
+    for (const auto& e : fsTable) {
+        EntryInfo info{};
+        info.name = e.name;
+        info.inode = e.inode;
+        info.type = e.type;
+        auto it = extractPaths.find(e.inode);
+        info.path = (it != extractPaths.end()) ? it->second.string() : std::string();
+        if (e.type == PFS_FILE && e.inode < iNodeBuf.size()) {
+            info.size = static_cast<u64>(iNodeBuf[e.inode].Size);
+            info.blocks = static_cast<u32>(iNodeBuf[e.inode].Blocks);
+            info.loc = static_cast<u32>(iNodeBuf[e.inode].loc);
+        } else {
+            info.size = 0;
+            info.blocks = 0;
+            info.loc = 0;
+        }
+        out.push_back(std::move(info));
+    }
+    return out;
 }

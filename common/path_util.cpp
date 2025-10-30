@@ -111,7 +111,8 @@ static auto UserPaths = [] {
     std::unordered_map<PathType, fs::path> paths;
 
     const auto create_path = [&](PathType shad_path, const fs::path& new_path) {
-        std::filesystem::create_directories(new_path);
+        // Non creare directory all'avvio: memorizziamo solo i percorsi.
+        // Le directory verranno create on-demand dove strettamente necessario.
         paths.insert_or_assign(shad_path, new_path);
     };
 

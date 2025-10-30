@@ -23,6 +23,7 @@ add_executable(pkgtool
     core/file_format/pkg.cpp
     core/file_format/trp.cpp
     core/file_format/psf.cpp
+    core/file_format/rif_generator.cpp
     core/crypto/crypto.cpp
     core/file_sys/file.cpp
     core/file_sys/fs.cpp

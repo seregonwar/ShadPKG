@@ -109,6 +109,10 @@ public:
                  std::string& failreason);
     void ExtractAllFilesWithProgress();
 
+    // Scansione "leggera": parse PKG/PFS senza scrivere su disco.
+    // Popola fsTable/iNodeBuf/extractPaths per ispezione.
+    bool Scan(const std::filesystem::path& filepath, std::string& failreason);
+
     std::vector<u8> sfo;
 
     u32 GetNumberOfFiles() {
@@ -159,6 +163,19 @@ public:
 
     // Restituisce la lista di tutte le entry (file e directory) con tipo
     std::vector<std::tuple<std::string, u32, u32>> GetAllEntries() const;
+
+    struct EntryInfo {
+        std::string name;
+        u32 inode;
+        u32 type;
+        std::string path; // path completo ricostruito
+        u64 size;         // valido per file
+        u32 blocks;       // valido per file
+        u32 loc;          // valido per file
+    };
+
+    // Info dettagliate su tutte le entry (use per output CLI)
+    std::vector<EntryInfo> GetEntriesInfo() const;
 
 private:
     Crypto crypto;

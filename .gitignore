@@ -1,0 +1,16 @@
+/build
+/build
+/build
+*.vcxproj
+/build
+/build
+/gift
+RIF_Documentation.md
+/rifs
+/ShadPKG-ps4
+/test_output
+/toml11
+/user
+debug_log.txt
+*.txt
+example_content_ids.txt
