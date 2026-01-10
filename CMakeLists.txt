@@ -28,7 +28,6 @@ add_executable(pkgtool
     common/string_util.cpp
     core/file_format/entry_name.cpp
     common/ntapi_stub.cpp
-    common/io_file_stub.cpp
     common/config.cpp
     common/logging/backend.cpp
     common/logging/filter.cpp
@@ -37,6 +36,10 @@ add_executable(pkgtool
     core/devices/logger.cpp
     core/devices/base_device.cpp
 )
+
+if(WIN32)
+    target_compile_definitions(pkgtool PRIVATE _WIN32_WINNT=NTDDI_WIN10_RS5)
+endif()
 
 # Includi tutte le directory necessarie
 # (aggiungi altre se servono per gli header)
@@ -52,3 +55,6 @@ target_include_directories(pkgtool PRIVATE
 # Link alle librerie tramite vcpkg
 # (usa i target moderni)
 target_link_libraries(pkgtool PRIVATE ZLIB::ZLIB fmt::fmt cryptopp::cryptopp)
+if(WIN32)
+    target_link_libraries(pkgtool PRIVATE onecore)
+endif()
