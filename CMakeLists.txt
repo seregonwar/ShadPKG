@@ -5,14 +5,6 @@ project(pkgtool_minimal)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Percorsi vcpkg (modifica se necessario)
-set(CMAKE_TOOLCHAIN_FILE "${CMAKE_SOURCE_DIR}/vcpkg/scripts/buildsystems/vcpkg.cmake")
-set(VCPKG_TARGET_TRIPLET "x64-windows")
-set(CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/vcpkg/installed/x64-windows/share")
-set(ZLIB_DIR "${CMAKE_SOURCE_DIR}/vcpkg/installed/x64-windows/share/zlib")
-set(fmt_DIR "${CMAKE_SOURCE_DIR}/vcpkg/installed/x64-windows/share/fmt")
-set(cryptopp_DIR "${CMAKE_SOURCE_DIR}/vcpkg/installed/x64-windows/share/cryptopp")
-
 # Trova i pacchetti richiesti tramite vcpkg
 find_package(ZLIB REQUIRED)
 find_package(CryptoPP REQUIRED)
