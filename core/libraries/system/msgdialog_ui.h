@@ -7,7 +7,7 @@
 #include <variant>
 
 #include "common/fixed_value.h"
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "core/libraries/system/commondialog.h"
 #include "imgui/imgui_layer.h"
 

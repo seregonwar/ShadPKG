@@ -7,7 +7,7 @@
 #include <boost/pool/pool.hpp>
 #include <boost/pool/pool_alloc.hpp>
 #include <boost/pool/poolfwd.hpp>
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 
 namespace VideoCore {
 

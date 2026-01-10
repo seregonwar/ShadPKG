@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <cstring>
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "core/aerolib/aerolib.h"
 
 namespace Core::AeroLib {

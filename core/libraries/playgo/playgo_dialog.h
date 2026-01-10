@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "core/libraries/system/commondialog.h"
 
 namespace Core::Loader {

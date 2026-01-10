@@ -5,7 +5,7 @@
 
 #include "common/bit_field.h"
 #include "common/enum.h"
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 
 namespace Core::Loader {
 class SymbolsResolver;

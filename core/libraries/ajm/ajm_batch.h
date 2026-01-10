@@ -4,7 +4,7 @@
 #pragma once
 
 #include "common/assert.h"
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "core/libraries/ajm/ajm.h"
 
 #include <boost/container/small_vector.hpp>

@@ -6,7 +6,7 @@
 #include <filesystem>
 #include <string>
 #include <vector>
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 
 class Splash {
 public:

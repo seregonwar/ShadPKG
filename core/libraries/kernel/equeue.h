@@ -9,7 +9,7 @@
 #include <vector>
 #include <boost/asio/steady_timer.hpp>
 
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 
 namespace Core::Loader {
 class SymbolsResolver;

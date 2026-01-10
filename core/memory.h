@@ -8,7 +8,7 @@
 #include <string_view>
 #include "common/enum.h"
 #include "common/singleton.h"
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "core/address_space.h"
 #include "core/libraries/kernel/memory.h"
 

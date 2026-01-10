@@ -10,7 +10,7 @@
 #include <string_view>
 #include <unordered_map>
 #include <vector>
-#include "common/endian.h"
+#include "common/shadpkg_endian.h"
 
 constexpr u32 PSF_MAGIC = 0x00505346;
 constexpr u32 PSF_VERSION_1_1 = 0x00000101;

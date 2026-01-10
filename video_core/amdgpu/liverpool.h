@@ -17,7 +17,7 @@
 #include "common/bit_field.h"
 #include "common/polyfill_thread.h"
 #include "common/slot_vector.h"
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "common/unique_function.h"
 #include "shader_recompiler/params.h"
 #include "video_core/amdgpu/pixel_format.h"

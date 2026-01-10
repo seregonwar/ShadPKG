@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "common/io_file.h"
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "loader.h"
 
 namespace Loader {

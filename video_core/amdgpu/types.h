@@ -6,7 +6,7 @@
 #include <string_view>
 #include <fmt/format.h>
 #include "common/assert.h"
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 
 namespace AmdGpu {
 

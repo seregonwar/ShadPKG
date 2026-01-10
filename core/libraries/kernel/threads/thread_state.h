@@ -10,7 +10,7 @@
 #include <stack>
 #include "common/singleton.h"
 #include "common/slab_heap.h"
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 
 namespace Libraries::Kernel {
 

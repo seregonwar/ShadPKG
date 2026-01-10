@@ -4,7 +4,7 @@
 #include <fmt/format.h>
 #include "common/io_file.h"
 #include "common/string_util.h"
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "core/aerolib/aerolib.h"
 #include "core/loader/symbols_resolver.h"
 

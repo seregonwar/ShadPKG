@@ -7,7 +7,7 @@
 #include <boost/container/small_vector.hpp>
 #include "common/div_ceil.h"
 #include "common/slot_vector.h"
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "video_core/buffer_cache/buffer.h"
 #include "video_core/buffer_cache/memory_tracker_base.h"
 #include "video_core/buffer_cache/range_set.h"

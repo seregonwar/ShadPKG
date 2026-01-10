@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "core/libraries/kernel/time.h"
 
 namespace Core::Loader {

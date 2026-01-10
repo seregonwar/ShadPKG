@@ -7,7 +7,7 @@
 
 #include "common/config.h"
 #include "common/singleton.h"
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "core/debug_state.h"
 #include "imgui/imgui_std.h"
 #include "imgui_internal.h"

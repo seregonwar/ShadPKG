@@ -6,7 +6,7 @@
 #include <cstring>
 #include "common/bit_field.h"
 #include "common/rdtsc.h"
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "core/platform.h"
 #include "video_core/amdgpu/pm4_opcodes.h"
 

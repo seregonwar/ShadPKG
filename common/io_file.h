@@ -9,7 +9,7 @@
 #include <type_traits>
 
 #include "common/concepts.h"
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "enum.h"
 
 namespace Common::FS {

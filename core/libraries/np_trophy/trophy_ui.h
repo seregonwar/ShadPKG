@@ -8,7 +8,7 @@
 #include <queue>
 
 #include "common/fixed_value.h"
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "core/libraries/np_trophy/np_trophy.h"
 #include "imgui/imgui_layer.h"
 #include "imgui/imgui_texture.h"

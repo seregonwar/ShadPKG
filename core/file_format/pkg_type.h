@@ -4,7 +4,7 @@
 #pragma once
 
 #include <string_view>
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 
 /// Retrieves the PKG entry name from its type identifier.
 std::string_view GetEntryNameByType(u32 type);

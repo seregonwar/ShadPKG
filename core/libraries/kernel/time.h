@@ -5,7 +5,7 @@
 
 #include <chrono>
 #include <sys/types.h>
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 
 namespace Common {
 class NativeClock;

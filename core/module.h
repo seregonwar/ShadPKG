@@ -5,7 +5,7 @@
 
 #include <string>
 #include <vector>
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "core/loader/elf.h"
 #include "core/loader/symbols_resolver.h"
 

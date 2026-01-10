@@ -5,7 +5,7 @@
 
 #include <filesystem>
 #include <vector>
-#include "types.h"
+#include "shadpkg_types.h"
 
 namespace Config {
 

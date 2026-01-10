@@ -5,7 +5,7 @@
 
 #include <condition_variable>
 #include <boost/container/static_vector.hpp>
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "common/unique_function.h"
 #include "video_core/renderer_vulkan/vk_master_semaphore.h"
 #include "video_core/renderer_vulkan/vk_resource_pool.h"

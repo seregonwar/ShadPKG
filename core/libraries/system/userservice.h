@@ -4,7 +4,7 @@
 // https://github.com/OpenOrbis/OpenOrbis-PS4-Toolchain/blob/master/include/orbis/_types/user.h
 #pragma once
 
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 
 namespace Core::Loader {
 class SymbolsResolver;

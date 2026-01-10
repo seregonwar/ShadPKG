@@ -5,7 +5,7 @@
 
 #include <chrono>
 
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 
 #ifdef _WIN64
 #include <windows.h>

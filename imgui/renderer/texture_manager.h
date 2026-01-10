@@ -6,7 +6,7 @@
 #include <filesystem>
 #include <vector>
 
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "imgui/imgui_texture.h"
 
 namespace vk {

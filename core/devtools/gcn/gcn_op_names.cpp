@@ -3,7 +3,7 @@
 
 // Credits to https://github.com/psucien/tlg-emu-tools/
 
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "gcn/si_ci_vi_merged_pm4_it_opcodes.h"
 
 namespace Core::Devtools::Gcn {

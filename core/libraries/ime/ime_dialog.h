@@ -4,7 +4,7 @@
 #pragma once
 
 #include "common/enum.h"
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "ime_common.h"
 
 namespace Core::Loader {

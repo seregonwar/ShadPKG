@@ -5,7 +5,7 @@
 
 #include <algorithm>
 #include <fmt/core.h>
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "core/libraries/kernel/orbis_error.h"
 
 namespace Core::Loader {

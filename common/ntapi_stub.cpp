@@ -1,5 +1,6 @@
 #include <cstdint>
 #include "common/ntapi.h"
+#include "common/shadpkg_types.h"
 
 static u64 NtSetInformationFile_stub(HANDLE, PIO_STATUS_BLOCK, PVOID, ULONG, FILE_INFORMATION_CLASS) {
     return 0;

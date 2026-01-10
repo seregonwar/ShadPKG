@@ -5,7 +5,7 @@
 
 #include "common/bounded_threadsafe_queue.h"
 #include "common/slot_array.h"
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "core/libraries/ajm/ajm.h"
 #include "core/libraries/ajm/ajm_batch.h"
 #include "core/libraries/ajm/ajm_instance.h"

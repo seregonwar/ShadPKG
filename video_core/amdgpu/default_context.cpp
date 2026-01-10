@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "video_core/amdgpu/liverpool.h"
 
 #include <array>

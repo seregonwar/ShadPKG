@@ -8,7 +8,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include "common/endian.h"
+#include "common/shadpkg_endian.h"
 #include "core/crypto/crypto.h"
 #include "pfs.h"
 #include "trp.h"

@@ -10,7 +10,7 @@
 #include <imgui.h>
 
 #include "common.h"
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "imgui_memory_editor.h"
 #include "reg_view.h"
 

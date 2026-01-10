@@ -3,7 +3,7 @@
 
 #include <thread>
 #include "common/assert.h"
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "core/libraries/kernel/kernel.h"
 #include "core/libraries/kernel/posix_error.h"
 #include "core/libraries/kernel/threads/pthread.h"
