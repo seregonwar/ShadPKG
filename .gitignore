@@ -1,9 +1,5 @@
 /build
-/build
-/build
 *.vcxproj
-/build
-/build
 /gift
 RIF_Documentation.md
 /rifs
@@ -12,7 +8,6 @@ RIF_Documentation.md
 /toml11
 /user
 debug_log.txt
-*.txt
 example_content_ids.txt
 IV0000-TEST00100_00-OPENORBISTEST000.pkg
 /vcpkg
