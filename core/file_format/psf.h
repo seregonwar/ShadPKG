@@ -10,6 +10,7 @@
 #include <string_view>
 #include <unordered_map>
 #include <vector>
+#include <optional>
 #include "common/shadpkg_endian.h"
 
 constexpr u32 PSF_MAGIC = 0x00505346;
@@ -93,3 +94,4 @@ private:
     [[nodiscard]] std::pair<std::vector<Entry>::const_iterator, size_t> FindEntry(
         std::string_view key) const;
 };
+
