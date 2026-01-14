@@ -53,3 +53,8 @@ if(WIN32)
     target_link_libraries(pkgtool PRIVATE onecore)
 endif()
 
+if(APPLE)
+    find_library(COREFOUNDATION_LIBRARY CoreFoundation)
+    target_link_libraries(pkgtool PRIVATE ${COREFOUNDATION_LIBRARY})
+endif()
+
