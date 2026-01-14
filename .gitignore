@@ -17,3 +17,5 @@ example_content_ids.txt
 IV0000-TEST00100_00-OPENORBISTEST000.pkg
 /vcpkg
 /robin-map
+/.vscode
+/file-per-analisi
