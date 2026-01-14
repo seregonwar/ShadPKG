@@ -8,7 +8,7 @@
 #include <vector>
 
 #include "common/io_file.h"
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 
 struct self_header {
     static constexpr u32 signature = 0x1D3D154Fu;

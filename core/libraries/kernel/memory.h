@@ -4,7 +4,7 @@
 #pragma once
 
 #include "common/bit_field.h"
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 
 constexpr u64 SCE_KERNEL_TOTAL_MEM = 5248_MB;
 constexpr u64 SCE_KERNEL_TOTAL_MEM_PRO = 5888_MB;

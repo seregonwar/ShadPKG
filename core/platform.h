@@ -6,7 +6,7 @@
 #include "common/assert.h"
 #include "common/logging/log.h"
 #include "common/singleton.h"
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 
 #include <magic_enum/magic_enum.hpp>
 

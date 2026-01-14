@@ -8,7 +8,7 @@
 #include <vector>
 
 #include "common/object_pool.h"
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 
 namespace VideoCore {
 

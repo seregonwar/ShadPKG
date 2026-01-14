@@ -7,7 +7,7 @@
 #include <deque>
 #include <type_traits>
 #include <vector>
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "video_core/buffer_cache/word_manager.h"
 
 namespace VideoCore {

@@ -6,7 +6,7 @@
 #include <sstream>
 #include <string>
 #include "common/string_util.h"
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 
 #ifdef _WIN32
 #include <windows.h>

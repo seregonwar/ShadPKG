@@ -4,7 +4,7 @@
 #include <algorithm>
 #include "common/alignment.h"
 #include "common/scope_exit.h"
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "shader_recompiler/frontend/fetch_shader.h"
 #include "shader_recompiler/info.h"
 #include "video_core/amdgpu/liverpool.h"

@@ -3,7 +3,7 @@
 #pragma once
 
 #include <xmmintrin.h>
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 
 #define VA_ARGS                                                                                    \
     uint64_t rdi, uint64_t rsi, uint64_t rdx, uint64_t rcx, uint64_t r8, uint64_t r9,              \

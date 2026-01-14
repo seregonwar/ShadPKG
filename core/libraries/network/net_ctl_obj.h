@@ -4,7 +4,7 @@
 #pragma once
 
 #include <mutex>
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 
 namespace Libraries::NetCtl {
 

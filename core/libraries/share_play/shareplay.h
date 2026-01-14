@@ -4,7 +4,7 @@
 #pragma once
 
 #include <core/libraries/np_manager/np_manager.h>
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 
 namespace Core::Loader {
 class SymbolsResolver;

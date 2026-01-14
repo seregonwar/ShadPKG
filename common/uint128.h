@@ -18,7 +18,7 @@
 #include <cstring>
 #endif
 
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 
 namespace Common {
 

@@ -4,7 +4,7 @@
 #pragma once
 
 #include <atomic>
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 
 namespace Core::Loader {
 class SymbolsResolver;

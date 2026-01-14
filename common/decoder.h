@@ -5,7 +5,7 @@
 
 #include <Zydis/Zydis.h>
 #include "common/singleton.h"
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 
 namespace Common {
 

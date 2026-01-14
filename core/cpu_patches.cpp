@@ -13,7 +13,7 @@
 #include "common/assert.h"
 #include "common/decoder.h"
 #include "common/signal_context.h"
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "core/signals.h"
 #include "core/tls.h"
 #include "cpu_patches.h"

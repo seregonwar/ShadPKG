@@ -4,7 +4,7 @@
 #pragma once
 #include <filesystem>
 #include <string>
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "common/io_file.h" // Per Common::FS::FileAccessMode
 
 namespace Core::FileSys {

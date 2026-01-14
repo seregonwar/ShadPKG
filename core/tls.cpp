@@ -4,7 +4,7 @@
 #include <mutex>
 #include "common/arch.h"
 #include "common/assert.h"
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "core/cpu_patches.h"
 #include "core/libraries/kernel/threads/pthread.h"
 #include "core/tls.h"

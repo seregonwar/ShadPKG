@@ -12,7 +12,7 @@
 #include <cryptopp/rsa.h>
 #include <cryptopp/sha.h>
 
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "keys.h"
 
 class Crypto {

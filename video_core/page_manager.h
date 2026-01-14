@@ -9,7 +9,7 @@
 #include "common/adaptive_mutex.h"
 #endif
 #include "common/spin_lock.h"
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 
 namespace Vulkan {
 class Rasterizer;

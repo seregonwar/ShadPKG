@@ -6,7 +6,7 @@
 #include <cstddef>
 #include <string>
 
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 
 #define PFS_FILE 2
 #define PFS_DIR 3

@@ -4,7 +4,7 @@
 #pragma once
 
 #include <core/libraries/kernel/orbis_error.h>
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "common/va_ctx.h"
 
 namespace Libraries::Kernel {

@@ -9,7 +9,7 @@
 
 #include "common/config.h"
 #include "common/logging/log.h"
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "video_core/renderer_vulkan/vk_common.h"
 
 namespace Frontend {

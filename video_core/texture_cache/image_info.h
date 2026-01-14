@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "core/libraries/videoout/buffer.h"
 #include "shader_recompiler/info.h"
 #include "video_core/amdgpu/liverpool.h"

@@ -12,7 +12,7 @@
 
 #include "common/bit_field.h"
 #include "common/io_file.h"
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "core/debug_state.h"
 #include "video_core/amdgpu/pm4_opcodes.h"
 

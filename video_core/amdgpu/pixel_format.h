@@ -5,7 +5,7 @@
 
 #include <string_view>
 #include <fmt/format.h>
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "video_core/amdgpu/types.h"
 
 namespace AmdGpu {

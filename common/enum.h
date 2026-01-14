@@ -4,7 +4,7 @@
 #pragma once
 
 #include <type_traits>
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 
 #define DECLARE_ENUM_FLAG_OPERATORS(type)                                                          \
     [[nodiscard]] constexpr type operator|(type a, type b) noexcept {                              \

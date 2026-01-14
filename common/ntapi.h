@@ -6,7 +6,7 @@
 #ifdef _WIN32
 
 #include <windows.h>
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 
 typedef enum _FILE_INFORMATION_CLASS {
     FileDirectoryInformation = 1,

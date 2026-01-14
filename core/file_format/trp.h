@@ -4,9 +4,9 @@
 #pragma once
 
 #include <vector>
-#include "common/endian.h"
+#include "common/shadpkg_endian.h"
 #include "common/io_file.h"
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 #include "core/crypto/crypto.h"
 
 struct TrpHeader {

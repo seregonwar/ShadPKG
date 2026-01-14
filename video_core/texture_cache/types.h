@@ -4,7 +4,7 @@
 #pragma once
 
 #include "common/slot_vector.h"
-#include "common/types.h"
+#include "common/shadpkg_types.h"
 
 namespace VideoCore {
 
