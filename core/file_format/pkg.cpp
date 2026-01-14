@@ -8,7 +8,7 @@
 #include "core/file_format/pkg.h"
 #include "core/file_format/pkg_type.h"
 #include <iostream>
-#include "simple_log.h"
+#include "common/logging/log.h"
 #include <thread>
 #include <atomic>
 #include <mutex>
@@ -54,17 +54,17 @@ PKG::PKG() = default;
 PKG::~PKG() = default;
 
 bool PKG::Open(const std::filesystem::path& filepath, std::string& failreason) {
-    simple_log("[DEBUG] Inizio PKG::Open su " + filepath.string());
+    LOG_DEBUG(Common, "Inizio PKG::Open su {}", filepath.string());
     Common::FS::IOFile file(filepath, Common::FS::FileAccessMode::Read);
     if (!file.IsOpen()) {
-        simple_log("[ERROR] File non aperto: " + filepath.string());
+        LOG_ERROR(Common, "File non aperto: {}", filepath.string());
         return false;
     }
     pkgSize = file.GetSize();
 
     file.Read(pkgheader);
     if (pkgheader.magic != 0x7F434E54) {
-        simple_log("[ERROR] Magic non valido nel PKG header");
+        LOG_ERROR(Common, "Magic non valido nel PKG header");
         return false;
     }
 
@@ -83,11 +83,11 @@ bool PKG::Open(const std::filesystem::path& filepath, std::string& failreason) {
     u32 offset = pkgheader.pkg_table_entry_offset;
     u32 n_files = pkgheader.pkg_table_entry_count;
 
-    simple_log("[DEBUG] Table entry offset: " + std::to_string(offset) + ", count: " + std::to_string(n_files));
+    LOG_DEBUG(Common, "Table entry offset: {}, count: {}", offset, n_files);
 
     if (!file.Seek(offset)) {
         failreason = "Failed to seek to PKG table entry offset";
-        simple_log("[ERROR] " + failreason);
+        LOG_ERROR(Common, "{}", failreason);
         return false;
     }
 
@@ -104,12 +104,12 @@ bool PKG::Open(const std::filesystem::path& filepath, std::string& failreason) {
         pkgEntries.push_back(entry);
         // Try to figure out the name
         const auto name = GetEntryNameByType(entry.id);
-        simple_log("[DEBUG] Entry " + std::to_string(i) + ": id=" + std::to_string(entry.id) + ", name=" + std::string(name));
+        LOG_DEBUG(Common, "Entry {}: id={}, name={}", i, entry.id, std::string(name));
         if (name == "param.sfo") {
             sfo.clear();
             if (!file.Seek(entry.offset)) {
                 failreason = "Failed to seek to param.sfo offset";
-                simple_log("[ERROR] " + failreason);
+                LOG_ERROR(Common, "{}", failreason);
                 return false;
             }
             sfo.resize(entry.size);
@@ -118,51 +118,51 @@ bool PKG::Open(const std::filesystem::path& filepath, std::string& failreason) {
     }
     file.Close();
 
-    simple_log("[DEBUG] Fine PKG::Open");
+    LOG_DEBUG(Common, "Fine PKG::Open");
     return true;
 }
 
 bool PKG::Extract(const std::filesystem::path& filepath, const std::filesystem::path& extract,
                   std::string& failreason) {
-    simple_log("[DEBUG] Inizio PKG::Extract su " + filepath.string() + " -> " + extract.string());
+    LOG_DEBUG(Common, "Inizio PKG::Extract su {} -> {}", filepath.string(), extract.string());
     extract_path = extract;
     pkgpath = filepath;
     Common::FS::IOFile file(filepath, Common::FS::FileAccessMode::Read);
     if (!file.IsOpen()) {
-        simple_log("[ERROR] File non aperto in Extract: " + filepath.string());
+        LOG_ERROR(Common, "File non aperto in Extract: {}", filepath.string());
         return false;
     }
     pkgSize = file.GetSize();
     file.ReadRaw<u8>(&pkgheader, sizeof(PKGHeader));
 
-    simple_log("[DEBUG] pkgheader.magic: " + std::to_string(pkgheader.magic));
-    simple_log("[DEBUG] pkgheader.pkg_size: " + std::to_string(pkgheader.pkg_size));
-    simple_log("[DEBUG] pkgheader.pkg_content_size: " + std::to_string(pkgheader.pkg_content_size));
-    simple_log("[DEBUG] pkgheader.pkg_content_offset: " + std::to_string(pkgheader.pkg_content_offset));
-    simple_log("[DEBUG] pkgheader.pkg_table_entry_offset: " + std::to_string(pkgheader.pkg_table_entry_offset));
-    simple_log("[DEBUG] pkgheader.pkg_table_entry_count: " + std::to_string(pkgheader.pkg_table_entry_count));
-    simple_log("[DEBUG] pkgheader.pfs_image_offset: " + std::to_string(pkgheader.pfs_image_offset));
-    simple_log("[DEBUG] pkgheader.pfs_cache_size: " + std::to_string(pkgheader.pfs_cache_size));
+    LOG_DEBUG(Common, "pkgheader.magic: {}", pkgheader.magic);
+    LOG_DEBUG(Common, "pkgheader.pkg_size: {}", pkgheader.pkg_size);
+    LOG_DEBUG(Common, "pkgheader.pkg_content_size: {}", pkgheader.pkg_content_size);
+    LOG_DEBUG(Common, "pkgheader.pkg_content_offset: {}", pkgheader.pkg_content_offset);
+    LOG_DEBUG(Common, "pkgheader.pkg_table_entry_offset: {}", pkgheader.pkg_table_entry_offset);
+    LOG_DEBUG(Common, "pkgheader.pkg_table_entry_count: {}", pkgheader.pkg_table_entry_count);
+    LOG_DEBUG(Common, "pkgheader.pfs_image_offset: {}", pkgheader.pfs_image_offset);
+    LOG_DEBUG(Common, "pkgheader.pfs_cache_size: {}", pkgheader.pfs_cache_size);
 
     if (pkgheader.magic != 0x7F434E54) {
-        simple_log("[ERROR] Magic non valido in Extract");
+        LOG_ERROR(Common, "Magic non valido in Extract");
         return false;
     }
 
     if (pkgheader.pkg_size > pkgSize) {
         failreason = "PKG file size is different";
-        simple_log("[ERROR] " + failreason);
+        LOG_ERROR(Common, "{}", failreason);
         return false;
     }
     if ((pkgheader.pkg_content_size + pkgheader.pkg_content_offset) > pkgheader.pkg_size) {
         failreason = "Content size is bigger than pkg size";
-        simple_log("[ERROR] " + failreason);
+        LOG_ERROR(Common, "{}", failreason);
         return false;
     }
 
     u32 offset = pkgheader.pkg_table_entry_offset;
     u32 n_files = pkgheader.pkg_table_entry_count;
-    simple_log("[DEBUG] Table entry offset: " + std::to_string(offset) + ", count: " + std::to_string(n_files));
+    LOG_DEBUG(Common, "Table entry offset: {}, count: {}", offset, n_files);
 
     std::array<u8, 64> concatenated_ivkey_dk3;
     std::array<u8, 32> seed_digest;
@@ -330,7 +330,7 @@ bool PKG::Extract(const std::filesystem::path& filepath, const std::filesystem::
     std::vector<char> decompressedData(0x10000);
 
     // Get iNdoes and Dirents.
-    simple_log("[DEBUG] Inizio parsing blocchi PFS, num_blocks: " + std::to_string(num_blocks));
+    LOG_DEBUG(Common, "Inizio parsing blocchi PFS, num_blocks: {}", num_blocks);
     for (int i = 0; i < num_blocks; i++) {
         const u64 sectorOffset = sectorMap[i];
         const u64 sectorSize = sectorMap[i + 1] - sectorOffset;
@@ -345,7 +345,7 @@ bool PKG::Extract(const std::filesystem::path& filepath, const std::filesystem::
 
         if (i == 0) {
             std::memcpy(&ndinode, decompressedData.data() + 0x30, 4); // number of folders and files
-            simple_log("[DEBUG] ndinode (num folder/file): " + std::to_string(ndinode));
+            LOG_DEBUG(Common, "ndinode (num folder/file): {}", ndinode);
         }
 
         int occupied_blocks =
@@ -361,7 +361,7 @@ bool PKG::Extract(const std::filesystem::path& filepath, const std::filesystem::
                     break;
                 }
                 iNodeBuf.push_back(node);
-                simple_log("[DEBUG] iNode aggiunto: Mode=" + std::to_string(node.Mode));
+                LOG_DEBUG(Common, "iNode aggiunto: Mode={}", node.Mode);
             }
         }
 
@@ -370,7 +370,7 @@ bool PKG::Extract(const std::filesystem::path& filepath, const std::filesystem::
         const std::string_view flat_path_table(&decompressedData[0x10], 15);
         if (flat_path_table == "flat_path_table") {
             uroot_reached = true;
-            simple_log("[DEBUG] flat_path_table trovato, uroot_reached=true");
+            LOG_DEBUG(Common, "flat_path_table trovato, uroot_reached=true");
         }
 
         if (uroot_reached) {
@@ -378,7 +378,7 @@ bool PKG::Extract(const std::filesystem::path& filepath, const std::filesystem::
                 Dirent dirent;
                 std::memcpy(&dirent, &decompressedData[i], sizeof(dirent));
                 ent_size = dirent.entsize;
-                simple_log("[DEBUG] Dirent uroot: ino=" + std::to_string(dirent.ino) + ", entsize=" + std::to_string(dirent.entsize));
+                LOG_DEBUG(Common, "Dirent uroot: ino={}, entsize={}", dirent.ino, dirent.entsize);
                 if (dirent.ino != 0) {
                     ndinode_counter++;
                 } else {
@@ -396,7 +396,7 @@ bool PKG::Extract(const std::filesystem::path& filepath, const std::filesystem::
         const std::string_view dotdot(&decompressedData[0x28], 2);
         if (dot == '.' && dotdot == "..") {
             dinode_reached = true;
-            simple_log("[DEBUG] dinode_reached=true");
+            LOG_DEBUG(Common, "dinode_reached=true");
         }
 
         // Get folder and file names.
@@ -408,7 +408,7 @@ bool PKG::Extract(const std::filesystem::path& filepath, const std::filesystem::
 
                 // Stop here and continue the main loop
                 if (dirent.ino == 0) {
-                    simple_log("[DEBUG] Dirent.ino==0, break ciclo");
+                    LOG_DEBUG(Common, "Dirent.ino==0, break ciclo");
                     break;
                 }
 
@@ -417,7 +417,7 @@ bool PKG::Extract(const std::filesystem::path& filepath, const std::filesystem::
                 table.name = std::string(dirent.name, dirent.namelen);
                 table.inode = dirent.ino;
                 table.type = dirent.type;
-                simple_log("[DEBUG] fsTable aggiunta: nome=" + table.name + ", inode=" + std::to_string(table.inode) + ", type=" + std::to_string(table.type));
+                LOG_DEBUG(Common, "fsTable aggiunta: nome={}, inode={}, type={}", table.name, table.inode, table.type);
 
                 if (table.type == PFS_CURRENT_DIR) {
                     current_dir = extractPaths[table.inode];
@@ -434,12 +434,12 @@ bool PKG::Extract(const std::filesystem::path& filepath, const std::filesystem::
                 }
             }
             if (end_reached) {
-                simple_log("[DEBUG] end_reached=true, break ciclo blocchi");
+                LOG_DEBUG(Common, "end_reached=true, break ciclo blocchi");
                 break;
             }
         }
     }
-    simple_log("[DEBUG] Fine parsing blocchi PFS");
+    LOG_DEBUG(Common, "Fine parsing blocchi PFS");
     return true;
 }
 
@@ -488,18 +488,18 @@ void PKG::ExtractFiles(const int index) {
     int inode_number = fsTable[index].inode;
     int inode_type = fsTable[index].type;
     std::string inode_name = fsTable[index].name;
-    std::cout << "[DEBUG] ExtractFiles: index=" << index << ", inode=" << inode_number << ", type=" << inode_type << ", name=" << inode_name << std::endl;
+    LOG_DEBUG(Common, "ExtractFiles: index={}, inode={}, type={}, name={}", index, inode_number, inode_type, inode_name);
     if (extractPaths.count(inode_number)) {
-        std::cout << "[DEBUG] Path: " << extractPaths[inode_number] << std::endl;
+        LOG_DEBUG(Common, "Path: {}", extractPaths[inode_number].string());
     } else {
-        std::cout << "[DEBUG] Path: (not found in extractPaths)" << std::endl;
+        LOG_DEBUG(Common, "Path: (not found in extractPaths)");
     }
     if (inode_type == PFS_FILE) {
         // Creo la directory di destinazione solo per il file che sto per scrivere
         try {
             std::filesystem::create_directories(extractPaths[inode_number].parent_path());
         } catch (const std::exception& e) {
-            simple_log(std::string("[ERROR] Creazione directory fallita: ") + e.what());
+            LOG_ERROR(Common, "Creazione directory fallita: {}", e.what());
         }
         int sector_loc = iNodeBuf[inode_number].loc;
         int nblocks = iNodeBuf[inode_number].Blocks;
@@ -565,7 +565,7 @@ void PKG::ExtractFiles(const int index) {
         try {
             std::filesystem::create_directories(outpath.parent_path());
         } catch (const std::exception& e) {
-            simple_log(std::string("[ERROR] Creazione directory fallita: ") + e.what());
+            LOG_ERROR(Common, "Creazione directory fallita: {}", e.what());
         }
         // Cerca la PKGEntry corrispondente
         for (const auto& entry : pkgEntries) {
@@ -596,24 +596,24 @@ std::vector<std::string> PKG::GetFileList() const {
 }
 
 std::vector<std::tuple<std::string, u32, u32>> PKG::GetAllEntries() const {
-    simple_log("[DEBUG] Chiamata GetAllEntries, fsTable size: " + std::to_string(fsTable.size()));
+    LOG_DEBUG(Common, "Chiamata GetAllEntries, fsTable size: {}", fsTable.size());
     std::vector<std::tuple<std::string, u32, u32>> entries;
     for (const auto& entry : fsTable) {
-        simple_log("[DEBUG] fsTable entry: nome=" + entry.name + ", inode=" + std::to_string(entry.inode) + ", type=" + std::to_string(entry.type));
+        LOG_DEBUG(Common, "fsTable entry: nome={}, inode={}, type={}", entry.name, entry.inode, entry.type);
         entries.emplace_back(entry.name, entry.inode, entry.type);
     }
     return entries;
 }
 
 bool PKG::Scan(const std::filesystem::path& filepath, std::string& failreason) {
-    simple_log(std::string("[DEBUG] Inizio PKG::Scan su ") + filepath.string());
+    LOG_DEBUG(Common, "Inizio PKG::Scan su {}", filepath.string());
     extract_path = "."; // base relativa per ricostruire i path
     pkgpath = filepath;
 
     Common::FS::IOFile file(filepath, Common::FS::FileAccessMode::Read);
     if (!file.IsOpen()) {
         failreason = "Impossibile aprire il file";
-        simple_log("[ERROR] " + failreason + ": " + filepath.string());
+        LOG_ERROR(Common, "{}: {}", failreason, filepath.string());
         return false;
     }
     pkgSize = file.GetSize();
@@ -621,7 +621,7 @@ bool PKG::Scan(const std::filesystem::path& filepath, std::string& failreason) {
 
     if (pkgheader.magic != 0x7F434E54) {
         failreason = "Magic PKG non valido";
-        simple_log("[ERROR] " + failreason);
+        LOG_ERROR(Common, "{}", failreason);
         return false;
     }
 
@@ -833,7 +833,7 @@ bool PKG::Scan(const std::filesystem::path& filepath, std::string& failreason) {
             if (end_reached) break;
         }
     }
-    simple_log("[DEBUG] Fine PKG::Scan, entries: " + std::to_string(fsTable.size()));
+    LOG_DEBUG(Common, "Fine PKG::Scan, entries: {}", fsTable.size());
     return true;
 }
 

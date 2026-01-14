@@ -19,8 +19,6 @@ add_executable(pkgtool
     core/file_format/psf.cpp
     core/file_format/rif_generator.cpp
     core/crypto/crypto.cpp
-    core/file_sys/file.cpp
-    core/file_sys/fs.cpp
     common/io_file.cpp
     common/path_util.cpp
     common/error.cpp
@@ -33,8 +31,6 @@ add_executable(pkgtool
     common/logging/filter.cpp
     common/logging/text_formatter.cpp
     common/thread.cpp
-    core/devices/logger.cpp
-    core/devices/base_device.cpp
 )
 
 if(WIN32)
@@ -48,7 +44,6 @@ target_include_directories(pkgtool PRIVATE
     ${CMAKE_SOURCE_DIR}/core
     ${CMAKE_SOURCE_DIR}/core/file_format
     ${CMAKE_SOURCE_DIR}/core/crypto
-    ${CMAKE_SOURCE_DIR}/core/file_sys
     ${CMAKE_SOURCE_DIR}/common
 )
 

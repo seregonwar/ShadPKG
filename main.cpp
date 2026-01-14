@@ -8,7 +8,6 @@
 #include "core/file_format/rif_generator.h"
 #include "common/logging/backend.h"
 #include "common/logging/log.h"
-#include "simple_log.h"
 
 void showUsage(const char* program_name) {
     std::cout << R"(
@@ -54,9 +53,7 @@ int main(int argc, char* argv[]) {
     // Inizializza il logger globale (stampa su console e file)
     Common::Log::Initialize("estrazione_pkg.log");
     Common::Log::SetColorConsoleBackendEnabled(true);
-    simple_log("[START] Avvio estrattore PKG con generatore RIF");
-
-    LOG_INFO(Common, "Test log: il logger funziona!");
+    LOG_INFO(Common, "[START] Avvio estrattore PKG con generatore RIF");
 
     try {
         if (argc < 2) {
@@ -258,10 +255,10 @@ int main(int argc, char* argv[]) {
             }
 
             // Continua con l'estrazione PKG
-            simple_log("[INFO] File PKG: " + pkg_path.string());
-            simple_log("[INFO] Cartella output: " + out_dir.string());
+            LOG_INFO(Common, "File PKG: {}", pkg_path.string());
+            LOG_INFO(Common, "Cartella output: {}", out_dir.string());
             if (use_rif) {
-                simple_log("[INFO] File RIF: " + rif_path.string());
+                LOG_INFO(Common, "File RIF: {}", rif_path.string());
             }
 
             // Verifica che il file PKG esista
@@ -279,7 +276,7 @@ int main(int argc, char* argv[]) {
             // Crea la cartella di output se non esiste
             if (!std::filesystem::exists(out_dir)) {
                 std::filesystem::create_directories(out_dir);
-                simple_log("[INFO] Creata cartella output: " + out_dir.string());
+                LOG_INFO(Common, "Creata cartella output: {}", out_dir.string());
             }
 
             std::string failreason;
@@ -289,11 +286,11 @@ int main(int argc, char* argv[]) {
                 return 1;
             }
 
-            simple_log("[SUCCESS] File PKG aperto con successo!");
+            LOG_INFO(Common, "File PKG aperto con successo!");
 
             // Se è stato fornito un file RIF, prova a usarlo per la decifrazione
             if (use_rif) {
-                simple_log("[RIF] Tentativo di decifrazione con file RIF...");
+                LOG_INFO(Common, "Tentativo di decifrazione con file RIF...");
                 // TODO: Implementare l'integrazione del file RIF con la decifrazione PKG
             }
 
@@ -329,3 +326,5 @@ int main(int argc, char* argv[]) {
         return 3;
     }
 }
+
+
