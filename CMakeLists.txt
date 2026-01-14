@@ -7,7 +7,7 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Trova i pacchetti richiesti tramite vcpkg
+# Trova i pacchetti richiesti
 find_package(ZLIB REQUIRED)
 find_package(CryptoPP REQUIRED)
 find_package(fmt REQUIRED)
@@ -47,9 +47,9 @@ target_include_directories(pkgtool PRIVATE
     ${CMAKE_SOURCE_DIR}/common
 )
 
-# Link alle librerie tramite vcpkg
-# (usa i target moderni)
+# Link alle librerie
 target_link_libraries(pkgtool PRIVATE ZLIB::ZLIB fmt::fmt cryptopp::cryptopp)
 if(WIN32)
     target_link_libraries(pkgtool PRIVATE onecore)
 endif()
+

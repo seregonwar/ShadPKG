@@ -12,6 +12,7 @@
 #include <bit>
 #include <concepts>
 #include "common/shadpkg_types.h"
+#include <fmt/format.h>
 
 namespace Common {
 
@@ -240,3 +241,11 @@ using u64_be = Common::BigEndian<u64>;
 using u16_le = Common::LittleEndian<u16>;
 using u32_le = Common::LittleEndian<u32>;
 using u64_le = Common::LittleEndian<u64>;
+
+template <std::integral T>
+struct fmt::formatter<Common::SwappedEndian<T>> : fmt::formatter<T> {
+    auto format(const Common::SwappedEndian<T>& val, fmt::format_context& ctx) const {
+        return fmt::formatter<T>::format(static_cast<T>(val), ctx);
+    }
+};
+

@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <vector>
+#include <bit>
+#include <cstdio>
 
 #include "common/alignment.h"
 #include "common/assert.h"
@@ -18,6 +20,7 @@
 #include <windows.h>
 #else
 #include <unistd.h>
+#include <stdio.h>
 #endif
 
 #ifdef _MSC_VER
@@ -430,3 +433,4 @@ u64 GetDirectorySize(const std::filesystem::path& path) {
 }
 
 } // namespace Common::FS
+

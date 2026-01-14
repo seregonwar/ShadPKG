@@ -11,34 +11,34 @@
 
 void showUsage(const char* program_name) {
     std::cout << R"(
-Estrattore/Decifratore PKG PS4 con Generatore RIF - by seregonwar
+PS4 PKG Extractor/Decrypter with RIF Generator - by seregonwar
 https://github.com/seregonwar
 ---------------------------------------------
 
-Uso:
-  )" << program_name << R"( extract [opzioni] <file.pkg> [cartella_output] [file.rif]
+Usage:
+  )" << program_name << R"( extract [options] <file.pkg> [output_dir] [file.rif]
   )" << program_name << R"( generate-rif <content_id> [output_dir]
   )" << program_name << R"( validate-rif <file.rif>
-  )" << program_name << R"( pfs-info [opzioni] <file.pkg>
+  )" << program_name << R"( pfs-info [options] <file.pkg>
 
-Comandi:
-  extract       - Estrae e decifra un file PKG
-                  Se specificato, usa il file RIF per la decifrazione
-  generate-rif  - Genera un file RIF per il Content ID specificato
-  validate-rif  - Valida un file RIF esistente
-  pfs-info      - Scansiona il PKG e mostra la struttura PFS senza estrarre file
+Commands:
+  extract       - Extracts and decrypts a PKG file
+                  If specified, uses the RIF file for decryption
+  generate-rif  - Generates a RIF file for the specified Content ID
+  validate-rif  - Validates an existing RIF file
+  pfs-info      - Scans the PKG and shows the PFS structure without extracting files
 
-Opzioni generali:
-  -h, --help    - Mostra questo help
+General Options:
+  -h, --help    - Shows this help
 
-Opzioni per extract:
-  -o, --output <dir>  - Directory di output (fallback: crea sottocartella con TitleID)
-  -r, --rif <file>    - Percorso del file RIF da usare durante la decifratura
+Options for extract:
+  -o, --output <dir>  - Output directory (fallback: creates subdirectory with TitleID)
+  -r, --rif <file>    - Path to the RIF file to use during decryption
 
-Opzioni per pfs-info:
-  --json        - Stampa l'output in formato JSON su stdout (per integrazione subprocess)
+Options for pfs-info:
+  --json        - Prints output in JSON format to stdout (for subprocess integration)
 
-Esempi:
+Examples:
   )" << program_name << R"( extract game.pkg ./output
   )" << program_name << R"( extract game.pkg ./output game.rif
   )" << program_name << R"( extract -o ./output -r game.rif game.pkg
@@ -50,10 +50,10 @@ Esempi:
 }
 
 int main(int argc, char* argv[]) {
-    // Inizializza il logger globale (stampa su console e file)
-    Common::Log::Initialize("estrazione_pkg.log");
+    // Initialize global logger (prints to console and file)
+    Common::Log::Initialize("pkg_extraction.log");
     Common::Log::SetColorConsoleBackendEnabled(true);
-    LOG_INFO(Common, "[START] Avvio estrattore PKG con generatore RIF");
+    LOG_INFO(Common, "[START] Starting PKG extractor with RIF generator");
 
     try {
         if (argc < 2) {
@@ -63,16 +63,16 @@ int main(int argc, char* argv[]) {
 
         std::string command = argv[1];
 
-        // Help globale
+        // Global Help
         if (command == "-h" || command == "--help" || command == "-help" || command == "-?") {
             showUsage(argv[0]);
             return 0;
         }
 
-        // Comando per generare file RIF
+        // Command to generate RIF file
         if (command == "generate-rif") {
             if (argc < 3) {
-                std::cerr << "Errore: Content ID richiesto per generate-rif\n";
+                std::cerr << "Error: Content ID required for generate-rif\n";
                 showUsage(argv[0]);
                 return 1;
             }
@@ -82,33 +82,33 @@ int main(int argc, char* argv[]) {
 
             RIFGenerator generator;
             if (generator.GenerateRIF(content_id, output_dir)) {
-                std::cout << "File RIF generato con successo per: " << content_id << std::endl;
+                std::cout << "RIF file successfully generated for: " << content_id << std::endl;
                 return 0;
             } else {
-                std::cerr << "Errore nella generazione del file RIF" << std::endl;
+                std::cerr << "Error generating RIF file" << std::endl;
                 return 1;
             }
         }
 
-        // Comando per validare file RIF
+        // Command to validate RIF file
         if (command == "validate-rif") {
             if (argc < 3) {
-                std::cerr << "Errore: File RIF richiesto per validate-rif\n";
+                std::cerr << "Error: RIF file required for validate-rif\n";
                 showUsage(argv[0]);
                 return 1;
             }
 
             std::filesystem::path rif_path = argv[2];
             if (RIFGenerator::ValidateRIF(rif_path)) {
-                std::cout << "File RIF valido: " << rif_path << std::endl;
+                std::cout << "Valid RIF file: " << rif_path << std::endl;
                 return 0;
             } else {
-                std::cerr << "File RIF non valido: " << rif_path << std::endl;
+                std::cerr << "Invalid RIF file: " << rif_path << std::endl;
                 return 1;
             }
         }
 
-        // Comando leggero: pfs-info
+        // Lightweight command: pfs-info
         if (command == "pfs-info") {
             bool as_json = false;
             std::filesystem::path pkg_path;
@@ -120,19 +120,19 @@ int main(int argc, char* argv[]) {
                 } else if (arg == "--json") {
                     as_json = true;
                 } else if (!arg.empty() && arg[0] == '-') {
-                    std::cerr << "Opzione non riconosciuta: " << arg << std::endl;
+                    std::cerr << "Unrecognized option: " << arg << std::endl;
                     showUsage(argv[0]);
                     return 1;
                 } else if (pkg_path.empty()) {
                     pkg_path = arg;
                 } else {
-                    std::cerr << "Argomenti in eccesso per pfs-info" << std::endl;
+                    std::cerr << "Excess arguments for pfs-info" << std::endl;
                     return 1;
                 }
             }
 
             if (pkg_path.empty()) {
-                std::cerr << "Errore: specificare il file PKG" << std::endl;
+                std::cerr << "Error: PKG file must be specified" << std::endl;
                 showUsage(argv[0]);
                 return 1;
             }
@@ -140,7 +140,7 @@ int main(int argc, char* argv[]) {
             std::string failreason;
             PKG pkg;
             if (!pkg.Scan(pkg_path, failreason)) {
-                std::cerr << "Errore in pfs-info: " << failreason << std::endl;
+                std::cerr << "Error in pfs-info: " << failreason << std::endl;
                 return 1;
             }
 
@@ -156,7 +156,7 @@ int main(int argc, char* argv[]) {
             }
 
             if (as_json) {
-                // Stampa JSON semplice
+                // Simple JSON output
                 std::cout << "{\n";
                 std::cout << "  \"title_id\": \"" << std::string(title_id) << "\",\n";
                 std::cout << "  \"flags\": \"" << flags << "\",\n";
@@ -178,7 +178,7 @@ int main(int argc, char* argv[]) {
                 std::cout << "  \"summary\": { \"files\": " << n_files << ", \"dirs\": " << n_dirs << " }\n";
                 std::cout << "}\n";
             } else {
-                // Stampa leggibile
+                // Human readable output
                 std::cout << "\n--- PFS Info ---\n";
                 std::cout << "TitleID: " << title_id << "\n";
                 std::cout << "Flags: " << flags << "\n";
@@ -194,9 +194,9 @@ int main(int argc, char* argv[]) {
             return 0;
         }
 
-        // Comando per estrarre PKG
+        // Command to extract PKG
         if (command == "extract") {
-            // Parsing flessibile: supporta sia posizionale (storico) che con opzioni -o/--output e -r/--rif
+            // Flexible parsing: supports both positional (legacy) and options -o/--output and -r/--rif
             std::filesystem::path pkg_path;
             std::filesystem::path out_dir = "."; // default
             std::filesystem::path rif_path;
@@ -209,122 +209,120 @@ int main(int argc, char* argv[]) {
                     return 0;
                 } else if (arg == "-o" || arg == "--output") {
                     if (i + 1 >= argc) {
-                        std::cerr << "Errore: manca il valore per --output" << std::endl;
+                        std::cerr << "Error: missing value for --output" << std::endl;
                         return 1;
                     }
                     out_dir = argv[++i];
                 } else if (arg == "-r" || arg == "--rif") {
                     if (i + 1 >= argc) {
-                        std::cerr << "Errore: manca il valore per --rif" << std::endl;
+                        std::cerr << "Error: missing value for --rif" << std::endl;
                         return 1;
                     }
                     rif_path = argv[++i];
                     use_rif = true;
                 } else if (!arg.empty() && arg[0] == '-') {
-                    std::cerr << "Opzione non riconosciuta: " << arg << std::endl;
+                    std::cerr << "Unrecognized option: " << arg << std::endl;
                     showUsage(argv[0]);
                     return 1;
                 } else {
                     if (pkg_path.empty()) {
                         pkg_path = arg;
                     } else if (out_dir == ".") {
-                        // compat: cartella_output posizionale
+                        // compat: positional output directory
                         out_dir = arg;
                     } else if (!use_rif) {
-                        // compat: file.rif posizionale
+                        // compat: positional rif file
                         rif_path = arg;
                         use_rif = true;
                     } else {
-                        std::cerr << "Argomenti in eccesso per extract" << std::endl;
+                        std::cerr << "Excess arguments for extract" << std::endl;
                         return 1;
                     }
                 }
             }
 
             if (pkg_path.empty()) {
-                std::cerr << "Errore: specificare il file PKG" << std::endl;
+                std::cerr << "Error: PKG file must be specified" << std::endl;
                 showUsage(argv[0]);
                 return 1;
             }
 
             if (use_rif) {
-                std::cout << "Usando file RIF: " << rif_path << std::endl;
+                std::cout << "Using RIF file: " << rif_path << std::endl;
                 if (!RIFGenerator::ValidateRIF(rif_path)) {
-                    std::cerr << "Attenzione: Il file RIF specificato non sembra valido" << std::endl;
+                    std::cerr << "Warning: The specified RIF file does not appear valid" << std::endl;
                 }
             }
 
-            // Continua con l'estrazione PKG
-            LOG_INFO(Common, "File PKG: {}", pkg_path.string());
-            LOG_INFO(Common, "Cartella output: {}", out_dir.string());
+            // Continue with PKG extraction
+            LOG_INFO(Common, "PKG File: {}", pkg_path.string());
+            LOG_INFO(Common, "Output Folder: {}", out_dir.string());
             if (use_rif) {
-                LOG_INFO(Common, "File RIF: {}", rif_path.string());
+                LOG_INFO(Common, "RIF File: {}", rif_path.string());
             }
 
-            // Verifica che il file PKG esista
+            // Verify that the PKG file exists
             if (!std::filesystem::exists(pkg_path)) {
-                LOG_ERROR(Lib_Kernel, "Il file PKG non esiste: {}", pkg_path.string());
+                LOG_ERROR(Lib_Kernel, "PKG file does not exist: {}", pkg_path.string());
                 return 1;
             }
 
-            // Verifica che il file RIF esista se specificato
+            // Verify that the RIF file exists if specified
             if (use_rif && !std::filesystem::exists(rif_path)) {
-                LOG_ERROR(Lib_Kernel, "Il file RIF non esiste: {}", rif_path.string());
+                LOG_ERROR(Lib_Kernel, "RIF file does not exist: {}", rif_path.string());
                 return 1;
             }
 
-            // Crea la cartella di output se non esiste
+            // Create the output folder if it doesn't exist
             if (!std::filesystem::exists(out_dir)) {
                 std::filesystem::create_directories(out_dir);
-                LOG_INFO(Common, "Creata cartella output: {}", out_dir.string());
+                LOG_INFO(Common, "Created output folder: {}", out_dir.string());
             }
 
             std::string failreason;
             PKG pkg;
             if (!pkg.Open(pkg_path, failreason)) {
-                std::cerr << "Errore nell'apertura del file PKG: " << failreason << std::endl;
+                std::cerr << "Error opening PKG file: " << failreason << std::endl;
                 return 1;
             }
 
-            LOG_INFO(Common, "File PKG aperto con successo!");
+            LOG_INFO(Common, "PKG file opened successfully!");
 
-            // Se è stato fornito un file RIF, prova a usarlo per la decifrazione
+            // If a RIF file was provided, try to use it for decryption
             if (use_rif) {
-                LOG_INFO(Common, "Tentativo di decifrazione con file RIF...");
-                // TODO: Implementare l'integrazione del file RIF con la decifrazione PKG
+                LOG_INFO(Common, "Attempting decryption with RIF file...");
+                // TODO: Implement RIF file integration with PKG decryption
             }
 
-            // Stampa le informazioni del PKG
+            // Print PKG information
             auto header = pkg.GetPkgHeader();
-            std::cout << "\n--- Info PKG ---\n";
+            std::cout << "\n--- PKG Info ---\n";
             std::cout << "TitleID: " << pkg.GetTitleID() << std::endl;
             std::cout << "Flags: " << pkg.GetPkgFlags() << std::endl;
             std::cout << "PKG Size: " << pkg.GetPkgSize() << std::endl;
 
-            // Estrazione e decifrazione: prima prepara le strutture, poi estrai i file con progress
+            // Extraction and decryption: first prepare structures, then extract files with progress
             if (!pkg.Extract(pkg_path, out_dir, failreason)) {
-                LOG_ERROR(Lib_Kernel, "Errore durante l'estrazione/decifratura: {}", failreason);
+                LOG_ERROR(Lib_Kernel, "Error during extraction/decryption: {}", failreason);
                 return 1;
             }
 
-            // Estrai i file veri e propri con barra di avanzamento
+            // Extract the actual files with progress bar
             pkg.ExtractAllFilesWithProgress();
 
-            std::cout << "Estrazione e decifratura completate con successo!\n";
+            std::cout << "Extraction and decryption completed successfully!\n";
             return 0;
         }
 
-        // Comando non riconosciuto
-        std::cerr << "Comando non riconosciuto: " << command << std::endl;
+        // Unrecognized command
+        std::cerr << "Unrecognized command: " << command << std::endl;
         showUsage(argv[0]);
         return 1;
     } catch (const std::exception& e) {
-        std::cerr << "Eccezione C++ non gestita: " << e.what() << std::endl;
+        std::cerr << "Unhandled C++ exception: " << e.what() << std::endl;
         return 2;
     } catch (...) {
-        std::cerr << "Errore fatale: crash o eccezione non gestita." << std::endl;
+        std::cerr << "Fatal error: crash or unhandled exception." << std::endl;
         return 3;
     }
 }
-
-

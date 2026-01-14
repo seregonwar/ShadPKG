@@ -59,9 +59,9 @@ shadPKG.exe "C:\GAMES\CUSA12345.pkg" C:\extracted\CUSA12345
 ## Technical Reference
 For a complete technical analysis of the PKG and PFS decryption process, data structures, and cryptographic workflow, see the paper:
 
-**[Technical Analysis of the Decryption Process for PlayStation 4 PKG and PFS File Formats](HOWWORKS.md)**
+**[Technical Analysis of the Decryption Process for PlayStation 4 PKG and PFS File Formats](docs/HOWWORKS.md)**
 
 ## Credits
 - Based on reverse engineering from the PS4 scene
 - Developed by seregonwar 
-- License: GPL-2.0-or-later 
+- License: LGPL-2.0-or-later 

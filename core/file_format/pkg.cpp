@@ -423,14 +423,12 @@ bool PKG::Extract(const std::filesystem::path& filepath, const std::filesystem::
                     current_dir = extractPaths[table.inode];
                 }
                 extractPaths[table.inode] = extract_path / (current_dir / std::filesystem::path(table.name));
-
                 if (table.type == PFS_FILE || table.type == PFS_DIR) {
-                    if (table.type == PFS_DIR) { // Create dirs.
-                        std::filesystem::create_directories(extractPaths[table.inode]);
+                    if (table.type == PFS_DIR) {
+                        // no disk writes in Scan
                     }
                     ndinode_counter++;
-                    if ((ndinode_counter + 1) == ndinode) // 1 for the image itself (root).
-                        end_reached = true;
+                    if ((ndinode_counter + 1) == ndinode) end_reached = true;
                 }
             }
             if (end_reached) {
@@ -439,7 +437,7 @@ bool PKG::Extract(const std::filesystem::path& filepath, const std::filesystem::
             }
         }
     }
-    LOG_DEBUG(Common, "Fine parsing blocchi PFS");
+    LOG_DEBUG(Common, "Finished parsing PFS blocks");
     return true;
 }
 
@@ -458,7 +456,7 @@ void PKG::ExtractAllFilesWithProgress() {
         for (int i = 0; i < barWidth; ++i) oss << (i < pos ? "=" : (i == pos ? ">" : " "));
         oss << "] ";
         oss << std::setw(3) << int(percent) << "% ";
-        oss << done << "/" << num_files << " estratti";
+        oss << done << "/" << num_files << " extracted";
         std::lock_guard<std::mutex> lock(print_mutex);
         std::cout << "\r" << std::string(80, ' ') << "\r" << oss.str() << std::flush;
     };
@@ -488,18 +486,16 @@ void PKG::ExtractFiles(const int index) {
     int inode_number = fsTable[index].inode;
     int inode_type = fsTable[index].type;
     std::string inode_name = fsTable[index].name;
-    LOG_DEBUG(Common, "ExtractFiles: index={}, inode={}, type={}, name={}", index, inode_number, inode_type, inode_name);
-    if (extractPaths.count(inode_number)) {
-        LOG_DEBUG(Common, "Path: {}", extractPaths[inode_number].string());
-    } else {
-        LOG_DEBUG(Common, "Path: (not found in extractPaths)");
-    }
+    
+    // Removed verbose logging for cleaner progress bar
+    // LOG_DEBUG(Common, "ExtractFiles: index={}, inode={}, type={}, name={}", index, inode_number, inode_type, inode_name);
+    
     if (inode_type == PFS_FILE) {
-        // Creo la directory di destinazione solo per il file che sto per scrivere
+        // Create destination directory only for the file about to be written
         try {
             std::filesystem::create_directories(extractPaths[inode_number].parent_path());
         } catch (const std::exception& e) {
-            LOG_ERROR(Common, "Creazione directory fallita: {}", e.what());
+            LOG_ERROR(Common, "Directory creation failed: {}", e.what());
         }
         int sector_loc = iNodeBuf[inode_number].loc;
         int nblocks = iNodeBuf[inode_number].Blocks;
@@ -557,17 +553,17 @@ void PKG::ExtractFiles(const int index) {
         pkgFile.Close();
         inflated.Close();
     } else if (inode_name.empty()) {
-        // Estrai anche le entry senza nome (unknown)
+        // Extract also nameless entries (unknown)
         std::ostringstream oss;
         oss << "entry_0x" << std::hex << inode_number << ".bin";
         std::filesystem::path outpath = extract_path / oss.str();
-        // Creo la directory di destinazione solo per il file che sto per scrivere
+        // Create destination directory only for the file about to be written
         try {
             std::filesystem::create_directories(outpath.parent_path());
         } catch (const std::exception& e) {
-            LOG_ERROR(Common, "Creazione directory fallita: {}", e.what());
+            LOG_ERROR(Common, "Directory creation failed: {}", e.what());
         }
-        // Cerca la PKGEntry corrispondente
+        // Search for the corresponding PKGEntry
         for (const auto& entry : pkgEntries) {
             if (entry.id == static_cast<u32>(inode_number)) {
                 Common::FS::IOFile pkgFile;
@@ -596,10 +592,10 @@ std::vector<std::string> PKG::GetFileList() const {
 }
 
 std::vector<std::tuple<std::string, u32, u32>> PKG::GetAllEntries() const {
-    LOG_DEBUG(Common, "Chiamata GetAllEntries, fsTable size: {}", fsTable.size());
+    LOG_DEBUG(Common, "Calling GetAllEntries, fsTable size: {}", fsTable.size());
     std::vector<std::tuple<std::string, u32, u32>> entries;
     for (const auto& entry : fsTable) {
-        LOG_DEBUG(Common, "fsTable entry: nome={}, inode={}, type={}", entry.name, entry.inode, entry.type);
+        LOG_DEBUG(Common, "fsTable entry: name={}, inode={}, type={}", entry.name, entry.inode, entry.type);
         entries.emplace_back(entry.name, entry.inode, entry.type);
     }
     return entries;
@@ -612,7 +608,7 @@ bool PKG::Scan(const std::filesystem::path& filepath, std::string& failreason) {
 
     Common::FS::IOFile file(filepath, Common::FS::FileAccessMode::Read);
     if (!file.IsOpen()) {
-        failreason = "Impossibile aprire il file";
+        failreason = "Unable to open file";
         LOG_ERROR(Common, "{}: {}", failreason, filepath.string());
         return false;
     }
@@ -620,12 +616,12 @@ bool PKG::Scan(const std::filesystem::path& filepath, std::string& failreason) {
     file.ReadRaw<u8>(&pkgheader, sizeof(PKGHeader));
 
     if (pkgheader.magic != 0x7F434E54) {
-        failreason = "Magic PKG non valido";
+        failreason = "Invalid PKG Magic";
         LOG_ERROR(Common, "{}", failreason);
         return false;
     }
 
-    // Flags leggibili
+    // Readable flags
     pkgFlags.clear();
     for (const auto& flag : flagNames) {
         if (isFlagSet(pkgheader.pkg_content_flags, flag.first)) {
@@ -638,11 +634,11 @@ bool PKG::Scan(const std::filesystem::path& filepath, std::string& failreason) {
     file.Seek(0x47);
     file.Read(pkgTitleID);
 
-    // Lettura entries tabella per trovare param.sfo ecc. (no scritture su disco)
+    // Read table entries to find param.sfo etc. (no disk writes)
     u32 offset = pkgheader.pkg_table_entry_offset;
     u32 n_files = pkgheader.pkg_table_entry_count;
     if (!file.Seek(offset)) {
-        failreason = "Seek fallito alla tabella entry";
+        failreason = "Seek failed to table entry";
         return false;
     }
     pkgEntries.clear();
@@ -660,11 +656,11 @@ bool PKG::Scan(const std::filesystem::path& filepath, std::string& failreason) {
 
     // Seed e decrypt PFS come in Extract(), ma senza scritture file.
     if (pkgheader.pkg_size > pkgSize) {
-        failreason = "Dimensione PKG inconsistente";
+        failreason = "Inconsistent PKG size";
         return false;
     }
     if ((pkgheader.pkg_content_size + pkgheader.pkg_content_offset) > pkgheader.pkg_size) {
-        failreason = "Content size oltre pkg size";
+        failreason = "Content size exceeds pkg size";
         return false;
     }
 
@@ -713,7 +709,7 @@ bool PKG::Scan(const std::filesystem::path& filepath, std::string& failreason) {
     // Seed
     std::array<u8, 16> seed;
     if (!file.Seek(pkgheader.pfs_image_offset + 0x370)) {
-        failreason = "Seek fallito a PFS seed";
+        failreason = "Seek failed to PFS seed";
         return false;
     }
     file.Read(seed);
@@ -830,7 +826,10 @@ bool PKG::Scan(const std::filesystem::path& filepath, std::string& failreason) {
                     if ((ndinode_counter + 1) == ndinode) end_reached = true;
                 }
             }
-            if (end_reached) break;
+            if (end_reached) {
+                LOG_DEBUG(Common, "end_reached=true, break ciclo blocchi");
+                break;
+            }
         }
     }
     LOG_DEBUG(Common, "Fine PKG::Scan, entries: {}", fsTable.size());
