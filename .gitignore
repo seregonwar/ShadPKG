@@ -15,3 +15,4 @@ IV0000-TEST00100_00-OPENORBISTEST000.pkg
 /.vscode
 /file-per-analisi
 /vcpkg_backup
+.DS_Store

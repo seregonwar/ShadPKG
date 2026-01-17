@@ -16,15 +16,20 @@ A tool for deriving PKG packet encryption keys for ps4 written in c++
 - Windows 10/11 (x64)
 - Visual Studio 2022 (Build Tools) or compatible
 - Python 3.10+ (for build.py)
-- [vcpkg](https://github.com/microsoft/vcpkg) for dependencies (Zlib, CryptoPP, etc)
+- [Conan 2.x](https://conan.io/) for dependencies (Zlib, CryptoPP, etc)
 
 ## Build Instructions
 
 1. **Clone the repository**
-2. **Install dependencies with vcpkg**
-   - Run `vcpkg/bootstrap-vcpkg.bat`
-   - Install required packages (e.g.: `vcpkg install zlib cryptopp`)
-3. **Build the project**
+2. **Install Conan** (if not already installed)
+   ```bash
+   pip install conan
+   ```
+3. **Install dependencies with Conan**
+   ```bash
+   conan install . --build=missing
+   ```
+4. **Build the project**
    - Run `python build.py` from the project root
    - Binaries will be generated in `build/Release/`
 
