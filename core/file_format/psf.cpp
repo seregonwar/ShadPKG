@@ -7,6 +7,9 @@
 #include "common/io_file.h"
 #include "common/logging/log.h"
 #include "core/file_format/psf.h"
+#include <optional>
+
+#include "common/logging/log.h"
 
 static const std::unordered_map<std::string_view, u32> psf_known_max_sizes = {
     {"ACCOUNT_ID", 8},  {"CATEGORY", 4},  {"DETAIL", 1024},       {"FORMAT", 4},
@@ -290,3 +293,4 @@ std::pair<std::vector<PSF::Entry>::const_iterator, size_t> PSF::FindEntry(
         std::ranges::find_if(entry_list, [&](const auto& entry) { return entry.key == key; });
     return {entry, std::distance(entry_list.begin(), entry)};
 }
+
