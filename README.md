@@ -1,72 +1,148 @@
-# shadPKG 
+# shadPKG
+
 [![Github All Releases](https://img.shields.io/github/downloads/seregonwar/ShadPKG/total.svg)]()
 
-A tool for deriving PKG packet encryption keys for ps4 written in c++
+**shadPKG** is a C++ tool designed to derive encryption keys and extract content from PlayStation 4 PKG files.
 
-## Description
+---
 
-**shadPKG** is an advanced tool to extract and decrypt PlayStation 4 PKG files (games, updates, DLC, etc). It allows you to:
-- Analyze the internal structure of a PKG
-- Extract all contained files and folders
-- Decrypt protected data
-- Supports game, patch, update, DLC, and homebrew PKGs
-- Progress bar and detailed logging
+## Overview
 
-## Requirements
-- Windows 10/11 (x64)
-- Visual Studio 2022 (Build Tools) or compatible
-- Python 3.10+ (for build.py)
-- [Conan 2.x](https://conan.io/) for dependencies (Zlib, CryptoPP, etc)
+**shadPKG** is an advanced utility for analyzing, decrypting, and extracting PS4 PKG files, including games, updates, patches, DLCs, and homebrew packages.
+
+It focuses on correctness, performance, and transparency, providing detailed logs and clear insight into the internal structure of PKG archives.
+
+### Key capabilities:
+
+* Full PKG structure analysis
+* Automatic derivation and handling of encryption keys
+* Decryption of protected data
+* Complete file and directory extraction
+* Support for retail, update, DLC, and homebrew PKGs
+* Multi-threaded extraction with progress reporting
+
+---
+
+## ☕ Support Development
+
+ShadPKG is actively maintained and improved over time.
+If you find it useful and want to support continued development, you can contribute via Ko-fi.
+
+[![Support me on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/seregon)
+
+---
+
+## System Requirements
+
+* **OS:** Windows 10 / 11 (x64)
+* **Compiler:** Visual Studio 2022 (Build Tools or full IDE)
+* **Python:** 3.10 or newer (required for `build.py`)
+* **Dependencies:** Conan 2.x
+
+  * Used for managing libraries such as Zlib, Crypto++, and others
+
+---
 
 ## Build Instructions
 
-1. **Clone the repository**
-2. **Install Conan** (if not already installed)
-   ```bash
-   pip install conan
-   ```
-3. **Install dependencies with Conan**
-   ```bash
-   conan install . --build=missing
-   ```
-4. **Build the project**
-   - Run `python build.py` from the project root
-   - Binaries will be generated in `build/Release/`
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/seregonwar/ShadPKG.git
+cd ShadPKG
+```
+
+### 2. Install Conan (if missing)
+
+```bash
+pip install conan
+```
+
+### 3. Install dependencies
+
+```bash
+conan install . --build=missing
+```
+
+### 4. Build the project
+
+Run the build script from the project root:
+
+```bash
+python build.py
+```
+
+The compiled binaries will be located in:
+
+```
+build/Release/
+```
+
+---
 
 ## Usage
 
-From terminal/PowerShell:
+From Command Prompt or PowerShell:
 
-```
-shadPKG.exe <path_to_file.pkg> <output_folder>
+```text
+shadPKG.exe <path_to_pkg> <output_directory>
 ```
 
-**Example:**
-```
+### Example:
+
+```text
 shadPKG.exe "C:\GAMES\CUSA12345.pkg" C:\extracted\CUSA12345
 ```
 
-- The program will extract all files and folders into the chosen directory.
-- A progress bar and detailed log are shown on the console and saved to `debug_log.txt`.
-- Even "unknown" entries (without a name) are extracted as `entry_0x<ID>.bin`.
+### Behavior:
+
+* All files and directories contained in the PKG are extracted to the target folder
+* Progress is displayed in real time
+* A detailed execution log is printed to the console and saved to `debug_log.txt`
+* Unknown or unnamed entries are exported as:
+
+  ```
+  entry_0x<ID>.bin
+  ```
+
+---
 
 ## Main Features
-- Parallel extraction (multi-threaded)
-- Automatic key decryption
-- Support for standard, update, DLC, and homebrew PKGs
-- Detailed logging and persistent log file
-- Robust error and path handling
 
-## Notes
-- Some special PKGs (patches, updates) may not contain all expected files.
-- In case of issues, check the `debug_log.txt` file generated in the program folder.
+* Multi-threaded extraction for improved performance
+* Automatic key handling and decryption
+* Robust support for different PKG types
+* Persistent logging for debugging and analysis
+* Safe path handling and error resilience
 
-## Technical Reference
-For a complete technical analysis of the PKG and PFS decryption process, data structures, and cryptographic workflow, see the paper:
+---
 
-**[Technical Analysis of the Decryption Process for PlayStation 4 PKG and PFS File Formats](docs/HOWWORKS.md)**
+## Notes & Limitations
 
-## Credits
-- Based on reverse engineering from the PS4 scene
-- Developed by seregonwar 
-- License: LGPL-2.0-or-later 
+* Some PKG types (especially patches or updates) may intentionally omit certain files
+* If extraction issues occur, consult the generated `debug_log.txt` before reporting problems
+
+---
+
+## Technical Documentation
+
+A detailed breakdown of the PKG and PFS formats, including cryptographic flow, data structures, and decryption logic, is available here:
+
+**📄 [Technical Analysis of the Decryption Process for PlayStation 4 PKG and PFS File Formats](docs/HOWWORKS.md)**
+
+---
+
+## Credits & License
+
+* Based on reverse engineering efforts from the PS4 research community
+* Developed and maintained by **seregonwar**
+* Licensed under **LGPL-2.0-or-later**
+
+---
+
+If vuoi, nel prossimo messaggio posso:
+
+* renderlo più “accademico”
+* renderlo più “scene-style”
+* ottimizzarlo per GitHub SEO
+* o adattarlo a una release pubblica seria (v1.0 ready)
