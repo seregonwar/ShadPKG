@@ -1,18 +1,20 @@
 cmake_minimum_required(VERSION 3.16)
-project(pkgtool_minimal)
+project(shadpkg)
 
 list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
-# Usa C++23 per abilitare std::byteswap e altre feature moderne
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║  C++23 required for std::byteswap and modern features                   ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Trova i pacchetti richiesti
+# Find required packages
 find_package(ZLIB REQUIRED)
 find_package(CryptoPP REQUIRED)
 find_package(fmt REQUIRED)
 
-add_executable(pkgtool
+add_executable(shadpkg
     main.cpp
     core/file_format/pkg.cpp
     core/file_format/trp.cpp
@@ -34,12 +36,11 @@ add_executable(pkgtool
 )
 
 if(WIN32)
-    target_compile_definitions(pkgtool PRIVATE _WIN32_WINNT=NTDDI_WIN10_RS5)
+    target_compile_definitions(shadpkg PRIVATE _WIN32_WINNT=NTDDI_WIN10_RS5)
 endif()
 
-# Includi tutte le directory necessarie
-# (aggiungi altre se servono per gli header)
-target_include_directories(pkgtool PRIVATE
+# Include directories
+target_include_directories(shadpkg PRIVATE
     ${CMAKE_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/core
     ${CMAKE_SOURCE_DIR}/core/file_format
@@ -47,14 +48,14 @@ target_include_directories(pkgtool PRIVATE
     ${CMAKE_SOURCE_DIR}/common
 )
 
-# Link alle librerie
-target_link_libraries(pkgtool PRIVATE ZLIB::ZLIB fmt::fmt cryptopp::cryptopp)
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║  Platform-specific linkage                                               ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+target_link_libraries(shadpkg PRIVATE ZLIB::ZLIB fmt::fmt cryptopp::cryptopp)
+
 if(WIN32)
-    target_link_libraries(pkgtool PRIVATE onecore)
+    target_link_libraries(shadpkg PRIVATE onecore)
+elseif(APPLE)
+    # CoreFoundation needed for path_util.cpp bundle functions
+    target_link_libraries(shadpkg PRIVATE "-framework CoreFoundation")
 endif()
-
-if(APPLE)
-    find_library(COREFOUNDATION_LIBRARY CoreFoundation)
-    target_link_libraries(pkgtool PRIVATE ${COREFOUNDATION_LIBRARY})
-endif()
-
