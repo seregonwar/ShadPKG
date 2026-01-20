@@ -26,7 +26,7 @@ add_executable(shadpkg
     common/error.cpp
     common/assert.cpp
     common/string_util.cpp
-    core/file_format/entry_name.cpp
+    core/file_format/pkg_type.cpp
     common/ntapi_stub.cpp
     common/config.cpp
     common/logging/backend.cpp

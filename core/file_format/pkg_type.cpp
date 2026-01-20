@@ -630,9 +630,11 @@ constexpr static std::array<PkgEntryValue, 611> PkgEntries = {{
 // ║  Lookup entry name by PKG entry type ID                               ║
 // ╚═══════════════════════════════════════════════════════════════════════╝
 std::string_view GetEntryNameByType(u32 type) {
-  // Binary search with explicit projection to compare by type field
-  const auto it =
-      std::ranges::lower_bound(PkgEntries, type, {}, &PkgEntryValue::type);
+  // Robust binary search using standard lower_bound with lambda comparator
+  auto it = std::lower_bound(
+      PkgEntries.begin(), PkgEntries.end(), type,
+      [](const PkgEntryValue &entry, u32 val) { return entry.type < val; });
+
   if (it != PkgEntries.end() && it->type == type) {
     return it->name;
   }

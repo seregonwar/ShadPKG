@@ -17,3 +17,5 @@ IV0000-TEST00100_00-OPENORBISTEST000.pkg
 /vcpkg_backup
 .DS_Store
 pkg_extraction.log
+/pkg-test
+sfo.c

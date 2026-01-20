@@ -283,8 +283,15 @@ int main(int argc, char *argv[]) {
 
       // Parse SFO from PKG's internal buffer
       PSF psf;
-      if (pkg.sfo.empty() || !psf.Open(pkg.sfo)) {
-        std::cerr << "Error: Could not parse param.sfo from PKG" << std::endl;
+      if (pkg.sfo.empty()) {
+        std::cerr << "Error: param.sfo not found in PKG (entry 0x1000 missing "
+                     "or lookup failed)"
+                  << std::endl;
+        return 1;
+      }
+      if (!psf.Open(pkg.sfo)) {
+        std::cerr << "Error: Malformed param.sfo data (Open failed)"
+                  << std::endl;
         return 1;
       }
 
@@ -495,6 +502,21 @@ int main(int argc, char *argv[]) {
       if (use_rif) {
         LOG_INFO(Common, "Attempting decryption with RIF file...");
         // TODO: Implement RIF file integration with PKG decryption
+      }
+
+      // Smart Output Path: Append CONTENT_ID to output directory
+      if (!pkg.sfo.empty()) {
+        PSF psf;
+        if (psf.Open(pkg.sfo)) {
+          if (auto cid = psf.GetString("CONTENT_ID"); cid.has_value()) {
+            out_dir /= *cid;
+            if (!std::filesystem::exists(out_dir)) {
+              std::filesystem::create_directories(out_dir);
+              LOG_INFO(Common, "Created specific output folder: {}",
+                       out_dir.string());
+            }
+          }
+        }
       }
 
       // Print PKG information

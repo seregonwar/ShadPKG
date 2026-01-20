@@ -106,8 +106,11 @@ bool PKG::Open(const std::filesystem::path &filepath, std::string &failreason) {
     pkgEntries.push_back(entry);
     // Try to figure out the name
     const auto name = GetEntryNameByType(entry.id);
-    LOG_DEBUG(Common, "Entry {}: id={}, name={}", i, entry.id,
-              std::string(name));
+
+    // Direct debug output to stderr
+    LOG_DEBUG(Common, "Entry {}: id={} (0x{:x}), name={}", i, entry.id,
+              (u32)entry.id, std::string(name));
+
     if (name == "param.sfo") {
       sfo.clear();
       if (!file.Seek(entry.offset)) {
@@ -451,7 +454,7 @@ bool PKG::Extract(const std::filesystem::path &filepath,
           current_dir = extractPaths[table.inode];
         }
         extractPaths[table.inode] =
-            extract_path / (current_dir / std::filesystem::path(table.name));
+            current_dir / std::filesystem::path(table.name);
         if (table.type == PFS_FILE || table.type == PFS_DIR) {
           if (table.type == PFS_DIR) {
             // no disk writes in Scan
@@ -882,7 +885,7 @@ bool PKG::Scan(const std::filesystem::path &filepath, std::string &failreason) {
           current_dir = extractPaths[table.inode];
         }
         extractPaths[table.inode] =
-            extract_path / (current_dir / std::filesystem::path(table.name));
+            current_dir / std::filesystem::path(table.name);
         if (table.type == PFS_FILE || table.type == PFS_DIR) {
           if (table.type == PFS_DIR) {
             // niente scritture su disco in Scan
