@@ -1,17 +1,15 @@
 // SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "pkg_type.h"
 #include <algorithm>
 #include <array>
-#include "pkg_type.h"
 
 struct PkgEntryValue {
-    u32 type;
-    std::string_view name;
+  u32 type;
+  std::string_view name;
 
-    operator u32() const noexcept {
-        return type;
-    }
+  operator u32() const noexcept { return type; }
 };
 
 constexpr static std::array<PkgEntryValue, 611> PkgEntries = {{
@@ -628,11 +626,15 @@ constexpr static std::array<PkgEntryValue, 611> PkgEntries = {{
     {0x17F9, "keymap_rp/30/010.png"},
 }};
 
+// ╔═══════════════════════════════════════════════════════════════════════╗
+// ║  Lookup entry name by PKG entry type ID                               ║
+// ╚═══════════════════════════════════════════════════════════════════════╝
 std::string_view GetEntryNameByType(u32 type) {
-    const auto key = PkgEntryValue{type};
-    const auto it = std::ranges::lower_bound(PkgEntries, key);
-    if (it != PkgEntries.end() && it->type == type) {
-        return it->name;
-    }
-    return "";
+  // Binary search with explicit projection to compare by type field
+  const auto it =
+      std::ranges::lower_bound(PkgEntries, type, {}, &PkgEntryValue::type);
+  if (it != PkgEntries.end() && it->type == type) {
+    return it->name;
+  }
+  return "";
 }

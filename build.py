@@ -3,23 +3,23 @@ import shutil
 import subprocess
 import sys
 
-# Configura i path
+# Configure paths
 project_root = os.path.abspath(os.path.dirname(__file__))
 build_dir = os.path.join(project_root, "build")
 
 def run(cmd, cwd=project_root):
-    print(f"\nEseguo: {' '.join(cmd)}\n")
+    print(f"\nRunning: {' '.join(cmd)}\n")
     result = subprocess.run(cmd, cwd=cwd)
     if result.returncode != 0:
-        print("Errore durante il comando:", ' '.join(cmd))
+        print("Error running command:", ' '.join(cmd))
         sys.exit(result.returncode)
 
 def check_conan():
     try:
         subprocess.run(["conan", "--version"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except (FileNotFoundError, subprocess.CalledProcessError):
-        print("Conan non trovato. Assicurati che sia installato e nel PATH.")
-        print("Puoi installarlo con: pip install conan")
+        print("Conan not found. Please ensure it is installed and in your PATH.")
+        print("You can install it with: pip install conan")
         sys.exit(1)
 
 def find_toolchain(search_path):
@@ -34,8 +34,8 @@ if __name__ == "__main__":
 
     check_conan()
 
-    # Installazione dipendenze con Conan
-    # Questo comando è sicuro da rieseguire (idempotente se non cambia nulla)
+    # Install dependencies with Conan
+    # This command is safe to rerun (idempotent if nothing changes)
     conan_cmd = [
         "conan", "install", ".",
         "--output-folder=build",
@@ -44,19 +44,19 @@ if __name__ == "__main__":
     ]
     run(conan_cmd)
 
-    # Trova il toolchain file
+    # Find the toolchain file
     toolchain_path = find_toolchain(build_dir)
     if not toolchain_path:
-        print("Errore: conan_toolchain.cmake non trovato dopo l'installazione.")
+        print("Error: conan_toolchain.cmake not found after installation.")
         sys.exit(1)
     
-    print(f"Toolchain trovato: {toolchain_path}")
+    print(f"Toolchain found: {toolchain_path}")
     
-    # Path relativo per cmake (o assoluto, ma cmake vuole path con / o \\ corretti)
-    # Usa path assoluto per sicurezza
+    # Relative path for cmake (or absolute, but cmake expects paths with correct / or \)
+    # Use absolute path for safety
     toolchain_path = toolchain_path.replace("\\", "/")
 
-    # Configurazione CMake
+    # CMake Configuration
     cmake_cmd = [
         "cmake",
         "-S", ".",
@@ -65,7 +65,7 @@ if __name__ == "__main__":
         "-DCMAKE_BUILD_TYPE=Release"
     ]
     
-    # Aggiungi -DCMAKE_POLICY_DEFAULT_CMP0091=NEW per gestire correttamente il runtime MSVC con Conan
+    # Add -DCMAKE_POLICY_DEFAULT_CMP0091=NEW to correctly handle MSVC runtime with Conan
     if sys.platform == "win32":
         cmake_cmd.append("-DCMAKE_POLICY_DEFAULT_CMP0091=NEW")
 
@@ -79,4 +79,4 @@ if __name__ == "__main__":
     ]
     run(build_cmd)
 
-    print("\nCompilazione completata con successo!")
+    print("\nBuild completed successfully!")
