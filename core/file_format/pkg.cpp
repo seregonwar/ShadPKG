@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "core/file_format/pkg.h"
+#include "common/alignment.h"
 #include "common/io_file.h"
 #include "common/logging/formatter.h"
 #include "common/logging/log.h"
@@ -268,15 +269,15 @@ bool PKG::Extract(const std::filesystem::path &filepath,
     }
 
     std::vector<u8> data;
-    data.resize(entry.size);
+    data.resize(Common::AlignUp(static_cast<u32>(entry.size), 16));
     file.ReadRaw<u8>(data.data(), entry.size);
-    out.WriteRaw<u8>(data.data(), data.size());
+    out.WriteRaw<u8>(data.data(), entry.size);
     out.Close();
 
     // Decrypt Np stuff and overwrite.
     if (entry.id == 0x400 || entry.id == 0x401 || entry.id == 0x402 ||
         entry.id == 0x403) { // somehow 0x401 is not decrypting
-      decNp.resize(entry.size);
+      decNp.resize(Common::AlignUp(static_cast<u32>(entry.size), 16));
       if (!file.Seek(entry.offset)) {
         failreason = "Failed to seek to PKG entry offset";
         return false;
@@ -291,12 +292,12 @@ bool PKG::Extract(const std::filesystem::path &filepath,
           std::span<const CryptoPP::byte, 32>(
               reinterpret_cast<const CryptoPP::byte *>(ivKey.data()), 32),
           std::span<CryptoPP::byte>(
-              reinterpret_cast<CryptoPP::byte *>(data.data()), entry.size),
+              reinterpret_cast<CryptoPP::byte *>(data.data()), data.size()),
           std::span<CryptoPP::byte>(
               reinterpret_cast<CryptoPP::byte *>(decNp.data()), decNp.size()));
       Common::FS::IOFile out(extract_path / "sce_sys" / name,
                              Common::FS::FileAccessMode::Write);
-      out.WriteRaw<u8>(decNp.data(), decNp.size());
+      out.WriteRaw<u8>(decNp.data(), entry.size);
       out.Close();
     }
 
