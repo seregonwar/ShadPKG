@@ -138,11 +138,3 @@ A detailed breakdown of the PKG and PFS formats, including cryptographic flow, d
 * Developed and maintained by **seregonwar**
 * Licensed under **LGPL-2.0-or-later**
 
----
-
-If vuoi, nel prossimo messaggio posso:
-
-* renderlo più “accademico”
-* renderlo più “scene-style”
-* ottimizzarlo per GitHub SEO
-* o adattarlo a una release pubblica seria (v1.0 ready)
