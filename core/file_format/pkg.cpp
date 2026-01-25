@@ -658,9 +658,10 @@ std::vector<std::tuple<std::string, u32, u32>> PKG::GetAllEntries() const {
   return entries;
 }
 
-bool PKG::Scan(const std::filesystem::path &filepath, std::string &failreason) {
+bool PKG::Scan(const std::filesystem::path &filepath, std::string &failreason,
+               std::filesystem::path extract_root) {
   LOG_DEBUG(Common, "Inizio PKG::Scan su {}", filepath.string());
-  extract_path = "."; // base relativa per ricostruire i path
+  extract_path = extract_root; // base relativa per ricostruire i path
   pkgpath = filepath;
 
   Common::FS::IOFile file(filepath, Common::FS::FileAccessMode::Read);

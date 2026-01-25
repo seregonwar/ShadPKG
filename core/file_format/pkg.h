@@ -110,9 +110,9 @@ public:
                const std::filesystem::path &extract, std::string &failreason);
   void ExtractAllFilesWithProgress();
 
-  // Scansione "leggera": parse PKG/PFS senza scrivere su disco.
-  // Popola fsTable/iNodeBuf/extractPaths per ispezione.
-  bool Scan(const std::filesystem::path &filepath, std::string &failreason);
+
+  bool Scan(const std::filesystem::path &filepath, std::string &failreason,
+            std::filesystem::path extract_root = ".");
 
   std::vector<u8> sfo;
 
