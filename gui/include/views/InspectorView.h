@@ -36,7 +36,7 @@ public:
   ~InspectorView() = default;
 
   void Draw(GUIContext &ctx);
-  void LoadPkg(const std::string &path);
+  void LoadPkg(GUIContext &ctx, const std::string &path);
   void Clear();
 
   bool IsPkgLoaded() const { return pkgLoaded_; }
@@ -83,7 +83,7 @@ private:
   float splitRatio_ = 0.35f;
 
   // UI drawing
-  void DrawLoadSection();
+  void DrawLoadSection(GUIContext &ctx);
   void DrawMetadataPanel();
   void DrawFilesystemPanel();
   void DrawFileNode(FileNode *node, int depth = 0);

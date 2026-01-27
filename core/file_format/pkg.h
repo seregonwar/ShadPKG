@@ -168,6 +168,9 @@ public:
   // Info dettagliate su tutte le entry (use per output CLI)
   std::vector<EntryInfo> GetEntriesInfo() const;
 
+  // Reads a file into memory
+  std::vector<u8> GetFileBuffer(const std::string &filename);
+
 private:
   // ╔═══════════════════════════════════════════════════════════════════════╗
   // ║  Thread Safety: mutex protects crypto operations during extraction    ║

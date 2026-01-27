@@ -54,10 +54,12 @@
 #include "include/StyleManager.h"
 
 // Views
+#include "include/views/DecompilerView.h"
 #include "include/views/ExtractorView.h"
 #include "include/views/InspectorView.h"
 #include "include/views/RIFView.h"
 #include "include/views/SettingsView.h"
+#include "include/views/StructEditorView.h"
 
 // Logging
 #include "common/logging/backend.h"
@@ -75,6 +77,7 @@ static ExtractorView g_ExtractorView;
 static InspectorView g_InspectorView;
 static RIFView g_RIFView;
 static SettingsView g_SettingsView;
+static DecompilerView g_DecompilerView;
 
 // Drag & drop file paths pending processing
 static std::vector<std::string> g_DroppedFiles;
@@ -179,28 +182,29 @@ static void DrawMainFrame() {
     case GUIContext::View::Settings:
       g_SettingsView.Draw(g_Context);
       break;
+      // Static instance moved to file scope or initialized elsewhere if needed
+      // For now, rely on global or member instance (the include must be global)
+      // Actually, g_StructEditorView declaration should be kept here if it's
+      // local static, BUT the type definition from include must be global.
+      static StructEditorView g_StructEditorView;
+
+      // ...
+
+    case GUIContext::View::Decompiler:
+      g_DecompilerView.Draw(g_Context);
+      break;
+    case GUIContext::View::StructEditor:
+      g_StructEditorView.Draw(g_Context);
+      break;
     }
 
     ImGui::EndChild();
     ImGui::PopStyleVar();
   }
 
-  // ═══════════════════════════════════════════════════════════════════════
-  //  Console Log Area
-  // ═══════════════════════════════════════════════════════════════════════
-  if (consoleHeight > 0.0f) {
-    ImGui::BeginChild("##console_area", ImVec2(0, consoleHeight), false,
-                      ImGuiWindowFlags_NoScrollbar |
-                          ImGuiWindowFlags_NoScrollWithMouse);
-    float logContentHeight = consoleHeight - 30.0f;
-    if (logContentHeight < 0.0f) {
-      logContentHeight = 0.0f;
-    }
-    g_ConsoleLog.Draw(logContentHeight);
-    ImGui::EndChild();
-  }
+  // ...
 
-  ImGui::EndChild(); // content_area
+  ImGui::EndChild(); // Close ##content_area
 
   ImGui::End(); // MainWindow
 }

@@ -55,6 +55,16 @@ void NavBar::Draw(GUIContext &ctx) {
     ctx.SetCurrentView(GUIContext::View::RIF);
   }
 
+  ImGui::Spacing();
+  ImGui::Spacing();
+
+  // Decompiler button
+  ImGui::SetCursorPosX(centerX);
+  if (DrawNavButton(ICON_FA_TERMINAL, "Decompiler",
+                    currentView == GUIContext::View::Decompiler)) {
+    ctx.SetCurrentView(GUIContext::View::Decompiler);
+  }
+
   // Spacer to push settings to bottom
   float availHeight = ImGui::GetContentRegionAvail().y;
   ImGui::Dummy(ImVec2(0, availHeight - 60));

@@ -30,14 +30,14 @@ void InspectorView::Draw(GUIContext &ctx) {
                                 ctx.loadedPkgPath);
     strncpy(pkgPathBuf_, ctx.loadedPkgPath.c_str(), sizeof(pkgPathBuf_) - 1);
     pkgPathBuf_[sizeof(pkgPathBuf_) - 1] = '\0';
-    LoadPkg(pkgPathBuf_);
+    LoadPkg(ctx, pkgPathBuf_);
 
     // Clear path from context to prevent re-syncing every frame
     // But keep pkgLoaded true so we know *a* package is active globally
     ctx.loadedPkgPath.clear();
   }
 
-  DrawLoadSection();
+  DrawLoadSection(ctx);
 
   ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8, 10));
 
@@ -93,7 +93,7 @@ void InspectorView::Draw(GUIContext &ctx) {
 // ┌─────────────────────────────────────────────────────────────────────────┐
 // │  Load Section                                                           │
 // └─────────────────────────────────────────────────────────────────────────┘
-void InspectorView::DrawLoadSection() {
+void InspectorView::DrawLoadSection(GUIContext &ctx) {
   ImGui::TextColored(Colors::Primary,
                      ICON_FA_MAGNIFYING_GLASS "  PKG INSPECTOR");
   ImGui::Spacing();
@@ -105,7 +105,7 @@ void InspectorView::DrawLoadSection() {
   ImGui::SameLine();
   if (ImGui::Button("Load", ImVec2(90, 0))) {
     if (strlen(pkgPathBuf_) > 0) {
-      LoadPkg(pkgPathBuf_);
+      LoadPkg(ctx, pkgPathBuf_);
     }
   }
 
@@ -277,34 +277,37 @@ void InspectorView::DrawFileNode(FileNode *node, int depth) {
 // ┌─────────────────────────────────────────────────────────────────────────┐
 // │  Data Loading                                                           │
 // └─────────────────────────────────────────────────────────────────────────┘
-void InspectorView::LoadPkg(const std::string &path) {
+void InspectorView::LoadPkg(GUIContext &ctx, const std::string &path) {
   Clear();
 
   strncpy(pkgPathBuf_, path.c_str(), sizeof(pkgPathBuf_) - 1);
   pkgPathBuf_[sizeof(pkgPathBuf_) - 1] = '\0';
 
-  PKG pkg;
+  auto pkg = std::make_shared<PKG>();
   std::string failreason;
 
   // Use Open ensuring SFO is loaded
-  if (!pkg.Open(path, failreason)) {
+  if (!pkg->Open(path, failreason)) {
     GuiLogSink::Instance().Error("Failed to open PKG: " + failreason);
     return;
   }
 
-  titleId_ = std::string(pkg.GetTitleID());
-  pkgSize_ = pkg.GetPkgSize();
+  titleId_ = std::string(pkg->GetTitleID());
+  pkgSize_ = pkg->GetPkgSize();
   pkgLoaded_ = true;
 
   // Load SFO data (Open populates this)
-  LoadSfoData(pkg);
+  LoadSfoData(*pkg);
 
   // Use Scan to populate file table for PFS
-  if (pkg.Scan(path, failreason)) {
-    LoadFileTree(pkg);
+  if (pkg->Scan(path, failreason)) {
+    LoadFileTree(*pkg);
   } else {
     GuiLogSink::Instance().Warn("Failed to scan PKG filesystem: " + failreason);
   }
+
+  // Set shared instance
+  ctx.currentPkg = pkg;
 
   GuiLogSink::Instance().Info("PKG inspected: " + titleId_);
 }

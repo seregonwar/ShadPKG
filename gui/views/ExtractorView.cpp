@@ -366,21 +366,21 @@ void ExtractorView::ValidatePkgFile(GUIContext *ctx) {
   }
 
   // Try to open and parse PKG
-  PKG pkg;
+  auto pkg = std::make_shared<PKG>();
   std::string failreason;
-  if (!pkg.Open(pkgPath, failreason)) {
+  if (!pkg->Open(pkgPath, failreason)) {
     GuiLogSink::Instance().Error("Failed to open PKG: " + failreason);
     return;
   }
 
-  pkgInfo_.titleId = std::string(pkg.GetTitleID());
-  pkgInfo_.pkgSize = pkg.GetPkgSize();
+  pkgInfo_.titleId = std::string(pkg->GetTitleID());
+  pkgInfo_.pkgSize = pkg->GetPkgSize();
   pkgInfo_.valid = true;
 
   // Get content ID from SFO
-  if (!pkg.sfo.empty()) {
+  if (!pkg->sfo.empty()) {
     PSF psf;
-    if (psf.Open(pkg.sfo)) {
+    if (psf.Open(pkg->sfo)) {
       if (auto cid = psf.GetString("CONTENT_ID"); cid.has_value()) {
         pkgInfo_.contentId = std::string(*cid);
       }
@@ -398,6 +398,7 @@ void ExtractorView::ValidatePkgFile(GUIContext *ctx) {
   if (ctx) {
     ctx->loadedPkgPath = pkgPath.string();
     ctx->pkgLoaded = true;
+    ctx->currentPkg = pkg; // Propagate to Decompiler/Inspector
   }
 }
 

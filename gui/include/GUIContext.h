@@ -11,6 +11,8 @@
 #include <thread>
 #include <vector>
 
+class PKG;
+
 // ╔═══════════════════════════════════════════════════════════════════════════╗
 // ║  GUIContext: Bridge between ImGui frontend and PKG extraction backend    ║
 // ║                                                                           ║
@@ -89,7 +91,14 @@ struct WorkerState {
 // └─────────────────────────────────────────────────────────────────────────┘
 class GUIContext {
 public:
-  enum class View { Extractor, Inspector, RIF, Settings };
+  enum class View {
+    Extractor,
+    Inspector,
+    RIF,
+    Settings,
+    Decompiler,
+    StructEditor
+  };
 
   GUIContext() = default;
   ~GUIContext();
@@ -115,6 +124,8 @@ public:
   // Loaded PKG info (for Inspector)
   std::string loadedPkgPath;
   bool pkgLoaded = false;
+  std::shared_ptr<PKG>
+      currentPkg; // Shared PKG instance for Decompiler/Inspector
 
   // Update Checker
   struct UpdateStatus {

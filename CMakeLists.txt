@@ -20,11 +20,13 @@ option(BUILD_GUI "Build the GUI application" ON)
 find_package(ZLIB REQUIRED)
 find_package(CryptoPP REQUIRED)
 find_package(fmt REQUIRED)
+find_package(nlohmann_json REQUIRED)
 
 if(BUILD_GUI)
     find_package(imgui REQUIRED)
     find_package(glfw3 REQUIRED)
     find_package(OpenGL REQUIRED)
+    find_package(capstone REQUIRED)
 endif()
 
 # ╔══════════════════════════════════════════════════════════════════════════╗
@@ -37,6 +39,16 @@ set(CORE_SOURCES
     core/file_format/rif_generator.cpp
     core/file_format/pkg_type.cpp
     core/crypto/crypto.cpp
+    core/decompiler/DecompilerContext.cpp
+    core/decompiler/analysis/DominatorAnalysis.cpp
+    core/decompiler/analysis/StructuralAnalysis.cpp
+    core/decompiler/analysis/SymbolAnalysis.cpp
+    core/decompiler/analysis/SymbolDatabase.cpp
+    core/decompiler/analysis/DataFlowAnalysis.cpp
+    core/decompiler/analysis/JumpTableAnalysis.cpp
+    core/decompiler/lifter/VariableAnalysis.cpp
+    core/decompiler/codegen/CppEmitter.cpp
+    core/decompiler/ir/AST.cpp
     common/io_file.cpp
     common/path_util.cpp
     common/error.cpp
@@ -60,7 +72,7 @@ target_include_directories(shadpkg_core PUBLIC
     ${CMAKE_SOURCE_DIR}/common
 )
 
-target_link_libraries(shadpkg_core PUBLIC ZLIB::ZLIB fmt::fmt cryptopp::cryptopp)
+target_link_libraries(shadpkg_core PUBLIC ZLIB::ZLIB fmt::fmt cryptopp::cryptopp capstone::capstone nlohmann_json::nlohmann_json)
 
 if(WIN32)
     target_compile_definitions(shadpkg_core PRIVATE _WIN32_WINNT=NTDDI_WIN10_RS5)
@@ -93,6 +105,8 @@ if(BUILD_GUI)
         gui/views/InspectorView.cpp
         gui/views/RIFView.cpp
         gui/views/SettingsView.cpp
+        gui/views/DecompilerView.cpp
+        gui/views/StructEditorView.cpp
     )
 
     add_executable(shadpkg-gui ${GUI_SOURCES})

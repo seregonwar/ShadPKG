@@ -637,6 +637,79 @@ void PKG::ExtractFiles(const int index) {
   }
 }
 
+std::vector<u8> PKG::GetFileBuffer(const std::string &filename) {
+  int index = -1;
+  for(size_t i=0; i<fsTable.size(); ++i) {
+      if(fsTable[i].name == filename) {
+          index = i;
+          break;
+      }
+  }
+  if (index == -1) return {};
+
+  int inode_number = fsTable[index].inode;
+  int inode_type = fsTable[index].type;
+  
+  if (inode_type != PFS_FILE) return {}; 
+
+  int sector_loc = iNodeBuf[inode_number].loc;
+  int nblocks = iNodeBuf[inode_number].Blocks;
+  int bsize = iNodeBuf[inode_number].Size;
+
+  std::vector<u8> resultBuffer;
+  resultBuffer.reserve(bsize);
+
+  Common::FS::IOFile pkgFile; 
+  pkgFile.Open(pkgpath, Common::FS::FileAccessMode::Read);
+  
+  int size_decompressed = 0;
+  std::vector<char> compressedData;
+  std::vector<char> decompressedData(0x10000);
+
+  u64 pfsc_buf_size = 0x11000;
+  std::vector<u8> pfsc(pfsc_buf_size);
+  std::vector<u8> pfs_decrypted(pfsc_buf_size);
+
+  for (int j = 0; j < nblocks; j++) {
+      u64 sectorOffset = sectorMap[sector_loc + j];
+      u64 sectorSize = sectorMap[sector_loc + j + 1] - sectorOffset;
+      u64 fileOffset = (pkgheader.pfs_image_offset + pfsc_offset + sectorOffset);
+      u64 currentSector1 = (pfsc_offset + sectorOffset) / 0x1000;
+
+      int sectorOffsetMask = (sectorOffset + pfsc_offset) & 0xFFFFF000;
+      int previousData = (sectorOffset + pfsc_offset) - sectorOffsetMask;
+
+      pkgFile.Seek(fileOffset - previousData);
+      pkgFile.Read(pfsc);
+
+      {
+        std::lock_guard<std::mutex> lock(crypto_mutex_);
+        crypto.decryptPFS(dataKey, tweakKey, pfsc, pfs_decrypted, currentSector1);
+      }
+      
+      compressedData.resize(sectorSize);
+      std::memcpy(compressedData.data(), pfs_decrypted.data() + previousData, sectorSize);
+
+      if (sectorSize == 0x10000)
+         std::memcpy(decompressedData.data(), compressedData.data(), 0x10000);
+      else if (sectorSize < 0x10000)
+         DecompressPFSC(compressedData.data(), compressedData.size(), decompressedData.data(), decompressedData.size());
+      
+      size_decompressed += 0x10000;
+
+      u32 write_size = 0x10000;
+      if (j == nblocks - 1) {
+         write_size = decompressedData.size() - (size_decompressed - bsize);
+      }
+      
+      resultBuffer.insert(resultBuffer.end(), 
+                          reinterpret_cast<u8*>(decompressedData.data()), 
+                          reinterpret_cast<u8*>(decompressedData.data()) + write_size);
+  }
+  
+  return resultBuffer;
+}
+
 std::vector<std::string> PKG::GetFileList() const {
   std::vector<std::string> files;
   for (const auto &entry : fsTable) {

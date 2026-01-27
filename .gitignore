@@ -17,6 +17,9 @@ IV0000-TEST00100_00-OPENORBISTEST000.pkg
 /vcpkg_backup
 .DS_Store
 pkg_extraction.log
-/pkg-test
 sfo.c
 /build_linux
+/output_test
+/sce_module
+sce_discmap.plt
+/pkg-test
