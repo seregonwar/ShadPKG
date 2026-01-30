@@ -40,8 +40,11 @@ set(CORE_SOURCES
     core/file_format/pkg_type.cpp
     core/crypto/crypto.cpp
     core/decompiler/DecompilerContext.cpp
+    core/decompiler/AutoCorrector.cpp
+    core/decompiler/MemoryAccessCorrector.cpp
     core/decompiler/analysis/DominatorAnalysis.cpp
     core/decompiler/analysis/StructuralAnalysis.cpp
+    core/decompiler/analysis/LoopCorrector.cpp
     core/decompiler/analysis/SymbolAnalysis.cpp
     core/decompiler/analysis/SymbolDatabase.cpp
     core/decompiler/analysis/DataFlowAnalysis.cpp

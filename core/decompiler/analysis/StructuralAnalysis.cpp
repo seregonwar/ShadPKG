@@ -1,4 +1,5 @@
 #include "StructuralAnalysis.h"
+#include "LoopCorrector.h"
 #include <iostream>
 
 namespace ShadPKG::Decompiler::Analysis {
@@ -164,6 +165,12 @@ StructuralAnalysis::matchLoop(uint64_t header, uint64_t stopBlock) {
         body->addStatement(bodyStmt);
     }
     result = std::make_shared<AST::DoWhileStatement>(body, condition);
+    
+    // Apply loop corrections to detect and fix infinite loops
+    if (auto corrected = LoopCorrector::correctDoWhileLoop(
+            std::dynamic_pointer_cast<AST::DoWhileStatement>(result), latchBB)) {
+      result = corrected;
+    }
   } else {
     if (headerBB->successors.size() == 2) {
       uint64_t trueSucc = headerBB->successors[0];
@@ -176,6 +183,12 @@ StructuralAnalysis::matchLoop(uint64_t header, uint64_t stopBlock) {
       auto condition = extractCondition(headerBB, inverted);
       auto bodyStmt = structureRegion(trueSucc, header);
       result = std::make_shared<AST::WhileStatement>(condition, bodyStmt);
+      
+      // Apply loop corrections to detect and fix infinite loops
+      if (auto corrected = LoopCorrector::correctWhileLoop(
+              std::dynamic_pointer_cast<AST::WhileStatement>(result), headerBB)) {
+        result = corrected;
+      }
     }
   }
 
