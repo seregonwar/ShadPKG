@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../ir/AST.h"
+#include <set>
 #include <sstream>
 #include <string>
 
@@ -69,11 +70,14 @@ private:
   std::vector<Token> tokens_;
   int indentLevel_ = 0;
   std::shared_ptr<AST::FunctionAST> currentFunc_;
+  std::set<std::string> usedRegs_; // Track reg_ variables to declare
 
   void indent();
   void emit(const std::string &str, TokenType type = TokenType::Text,
             uint64_t addr = 0);
   void emitLine(const std::string &str = "", TokenType type = TokenType::Text);
+  void collectUsedRegs(const std::shared_ptr<AST::Statement> &stmt);
+  void collectUsedRegsExpr(const std::shared_ptr<AST::Expression> &expr);
 
   std::string inferTypeFromInstruction(uint64_t address);
 };

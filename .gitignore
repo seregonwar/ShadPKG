@@ -23,3 +23,16 @@ sfo.c
 /sce_module
 sce_discmap.plt
 /pkg-test
+/decompiled
+/extraction_out
+/full_extract
+*.bin
+/common/res
+/Orbis
+/sce_sys
+/music
+/common/Media
+export_log.txt
+export_log_full.txt
+export_log_full_clean.txt
+/test_out

@@ -48,6 +48,8 @@ public:
   int32_t ReadInt32(uint64_t address) const;
 
   uint64_t GetBaseAddress() const { return baseAddress_; }
+  uint64_t GetEntryPoint() const { return entryPoint_; }
+  void SetEntryPoint(uint64_t ep) { entryPoint_ = ep; }
 
   const std::vector<std::shared_ptr<IR::Function>> &GetFunctions() const {
     return functions_;
@@ -70,6 +72,7 @@ private:
 
   std::vector<uint8_t> rawData_;
   uint64_t baseAddress_ = 0;
+  uint64_t entryPoint_ = 0;
   uint64_t elfOffset_ = 0;
   std::vector<std::shared_ptr<IR::Function>> functions_;
   std::shared_ptr<Analysis::SymbolDatabase> symbolDatabase_;
@@ -101,6 +104,34 @@ public:
 
 private:
   std::map<uint64_t, std::vector<Codegen::CppEmitter::Token>> functionTokens_;
+  std::map<uint64_t, int> functionParamCounts_;
+
+public:
+  int GetFunctionParamCount(uint64_t address) const {
+    auto it = functionParamCounts_.find(address);
+    if (it != functionParamCounts_.end())
+      return it->second;
+    return 0; // Default or unknown
+  }
+  void SetFunctionParamCount(uint64_t address, int count) {
+    functionParamCounts_[address] = count;
+  }
+
+  // ┌─────────────────────────────────────────────────────────────────────────┐
+  // │  Progress Tracking for GUI                                              │
+  // └─────────────────────────────────────────────────────────────────────────┘
+public:
+  struct AnalysisProgress {
+    int prologuesFound = 0;    // Candidates from prologue scan
+    int functionsAnalyzed = 0; // Functions fully analyzed
+    std::string currentPhase;  // "scanning", "analyzing", "complete"
+    bool isComplete = false;
+  };
+
+  const AnalysisProgress &GetProgress() const { return progress_; }
+
+private:
+  mutable AnalysisProgress progress_;
 
   // Status tracking
   bool isAnalyzed_ = false;

@@ -85,7 +85,6 @@ std::vector<uint8_t> readFile(const std::filesystem::path &path) {
 }
 
 int main(int argc, char *argv[]) {
-  // Initialize global logger (prints to console and file)
   Common::Log::Initialize("pkg_extraction.log");
   Common::Log::SetColorConsoleBackendEnabled(true);
   LOG_INFO(Common, "[START] Starting PKG extractor with RIF generator");
@@ -412,12 +411,13 @@ int main(int argc, char *argv[]) {
 
     // Command to extract PKG
     if (command == "extract") {
+      std::cerr << "DEBUG: Entered extract block" << std::endl;
       // Flexible parsing: supports both positional (legacy) and options
       std::filesystem::path pkg_path;
       std::filesystem::path out_dir = "."; // default
       std::filesystem::path rif_path;
       bool use_rif = false;
-      
+
       // Decompiler Flags
       bool export_project = false;
       std::filesystem::path export_dir;
@@ -452,8 +452,9 @@ int main(int argc, char *argv[]) {
           use_rif = true;
         } else if (arg == "--export-project") {
           if (i + 1 >= argc) {
-             std::cerr << "Error: missing value for --export-project" << std::endl;
-             return 1;
+            std::cerr << "Error: missing value for --export-project"
+                      << std::endl;
+            return 1;
           }
           export_project = true;
           export_dir = argv[++i];
@@ -461,21 +462,21 @@ int main(int argc, char *argv[]) {
           list_functions = true;
         } else if (arg == "--decompile") {
           if (i + 1 >= argc) {
-             std::cerr << "Error: missing address for --decompile" << std::endl;
-             return 1;
+            std::cerr << "Error: missing address for --decompile" << std::endl;
+            return 1;
           }
           decompile_single = true;
           std::string addrStr = argv[++i];
           try {
             decompile_addr = std::stoull(addrStr, nullptr, 16);
           } catch (...) {
-             std::cerr << "Error: invalid hex address: " << addrStr << std::endl;
-             return 1;
+            std::cerr << "Error: invalid hex address: " << addrStr << std::endl;
+            return 1;
           }
         } else if (arg == "--load-db") {
           if (i + 1 >= argc) {
-             std::cerr << "Error: missing value for --load-db" << std::endl;
-             return 1;
+            std::cerr << "Error: missing value for --load-db" << std::endl;
+            return 1;
           }
           load_db_path = argv[++i];
         } else if (!arg.empty() && arg[0] == '-') {
@@ -543,9 +544,9 @@ int main(int argc, char *argv[]) {
         // TODO: Implement RIF file integration with PKG decryption
       }
 
-      // Smart Output Path adjustment if not explicitly set by user to something else than . or arg
-      // But we respect out_dir from above.
-      
+      // Smart Output Path adjustment if not explicitly set by user to something
+      // else than . or arg But we respect out_dir from above.
+
       // Extraction and decryption
       if (!pkg.Extract(pkg_path, out_dir, failreason)) {
         LOG_ERROR(Lib_Kernel, "Error during extraction/decryption: {}",
@@ -560,114 +561,166 @@ int main(int argc, char *argv[]) {
 
       // --- Decompiler Integration ---
       if (export_project || list_functions || decompile_single) {
-         LOG_INFO(Common, "Starting Decompiler Analysis...");
+        LOG_INFO(Common, "Starting Decompiler Analysis...");
 
-         // 1. Locate Executable (eboot.bin or .sprx)
-         std::filesystem::path exePath;
-         std::filesystem::path potentialEboot = out_dir / "eboot.bin";
-         std::filesystem::path potentialEbootUpper = out_dir / "EBOOT.BIN";
-         
-         if (std::filesystem::exists(potentialEboot)) exePath = potentialEboot;
-         else if (std::filesystem::exists(potentialEbootUpper)) exePath = potentialEbootUpper;
-         else {
-            // Search for SPRX
-            for (const auto& entry : std::filesystem::recursive_directory_iterator(out_dir)) {
-               if (entry.path().extension() == ".sprx") {
-                  exePath = entry.path();
-                  break;
-               }
+        // 1. Locate Executable (eboot.bin or .sprx)
+        std::filesystem::path exePath;
+        std::filesystem::path potentialEboot = out_dir / "eboot.bin";
+        std::filesystem::path potentialEbootUpper = out_dir / "EBOOT.BIN";
+
+        if (std::filesystem::exists(potentialEboot))
+          exePath = potentialEboot;
+        else if (std::filesystem::exists(potentialEbootUpper))
+          exePath = potentialEbootUpper;
+        else {
+          // Search for SPRX
+          for (const auto &entry :
+               std::filesystem::recursive_directory_iterator(out_dir)) {
+            if (entry.path().extension() == ".sprx") {
+              exePath = entry.path();
+              break;
             }
-         }
+          }
+        }
 
-         if (exePath.empty()) {
-            std::cerr << "Error: Could not find eboot.bin or .sprx in " << out_dir << "\n";
+        if (exePath.empty()) {
+          std::cerr << "Error: Could not find eboot.bin or .sprx in " << out_dir
+                    << "\n";
+          return 1;
+        }
+
+        LOG_INFO(Common, "Found executable: {}", exePath.string());
+
+        // 2. Load into DecompilerContext
+        auto data = readFile(exePath);
+        if (data.empty()) {
+          std::cerr << "Error: Failed to read executable file.\n";
+          return 1;
+        }
+
+        auto &ctx = ShadPKG::Decompiler::DecompilerContext::Get();
+        if (!ctx.LoadELF(data)) {
+          std::cerr << "Error: Failed to parse ELF file.\n";
+          return 1;
+        }
+
+        if (!load_db_path.empty()) {
+          LOG_INFO(Common, "Loading project database from: {}",
+                   load_db_path.string());
+          if (ctx.LoadProject(load_db_path.string())) {
+            LOG_INFO(Common, "Project database loaded successfully.");
+          } else {
+            LOG_ERROR(Common, "Failed to load project database.");
             return 1;
-         }
+          }
+        }
 
-         LOG_INFO(Common, "Found executable: {}", exePath.string());
+        // 3. Analyze
+        LOG_INFO(Common, "Analyzing binary (this may take a while)...");
+        ctx.Analyze();
+        LOG_INFO(Common, "Analysis complete. Found {} functions.",
+                 ctx.GetFunctions().size());
 
-         // 2. Load into DecompilerContext
-         auto data = readFile(exePath);
-         if (data.empty()) {
-             std::cerr << "Error: Failed to read executable file.\n";
-             return 1;
-         }
-         
-         auto& ctx = ShadPKG::Decompiler::DecompilerContext::Get();
-         if (!ctx.LoadELF(data)) {
-             std::cerr << "Error: Failed to parse ELF file.\n";
-             return 1;
-         }
+        // 4. Handle Commands
+        if (list_functions) {
+          std::cout << "\n--- Function List ---\n";
+          std::cout << "Address      | Name\n";
+          std::cout << "-------------|-------------------\n";
+          for (const auto &func : ctx.GetFunctions()) {
+            printf("0x%010llX | %s\n", func->address, func->name.c_str());
+          }
+        }
 
-         if (!load_db_path.empty()) {
-             LOG_INFO(Common, "Loading project database from: {}", load_db_path.string());
-             if (ctx.LoadProject(load_db_path.string())) {
-                 LOG_INFO(Common, "Project database loaded successfully.");
-             } else {
-                 LOG_ERROR(Common, "Failed to load project database.");
-                 return 1;
-             }
-         }
+        if (decompile_single) {
+          auto func = ctx.GetFunctionAt(decompile_addr);
+          if (!func) {
+            std::cerr << "Error: Function at 0x" << std::hex << decompile_addr
+                      << " not found.\n";
+          } else {
 
-         // 3. Analyze
-         LOG_INFO(Common, "Analyzing binary (this may take a while)...");
-         ctx.Analyze();
-         LOG_INFO(Common, "Analysis complete. Found {} functions.", ctx.GetFunctions().size());
+            using namespace ShadPKG::Decompiler;
 
-         // 4. Handle Commands
-         if (list_functions) {
-             std::cout << "\n--- Function List ---\n";
-             std::cout << "Address      | Name\n";
-             std::cout << "-------------|-------------------\n";
-             for (const auto& func : ctx.GetFunctions()) {
-                 printf("0x%010llX | %s\n", func->address, func->name.c_str());
-             }
-         }
+            // Init Global Analysis
+            auto symbols = std::make_shared<Analysis::SymbolAnalysis>(
+                ctx.GetRawData(), ctx.GetBaseAddress(),
+                ctx.GetSymbolDatabase());
+            symbols->analyze();
 
-         if (decompile_single) {
-             auto func = ctx.GetFunctionAt(decompile_addr);
-             if (!func) {
-                 std::cerr << "Error: Function at 0x" << std::hex << decompile_addr << " not found.\n";
-             } else {
-                 // For single function, we need to run the pipeline manually or use a helper
-                 // Reuse ExportProject logic? No, that's too heavy.
-                 // We need a helper to generate code for ONE function.
-                 // But DecompilerContext::GenerateStructuredCode() runs on ALL functions.
-                 // I'll create a quick localized pipeline here for simplicity as I can't modify the header easily again without context switch.
-                 // Actually, DecompilerContext::ExportProject uses the pipeline on a loop. I can copy that.
-                 
-                 using namespace ShadPKG::Decompiler;
-                 
-                 // Init Global Analysis
-                 auto symbols = std::make_shared<Analysis::SymbolAnalysis>(ctx.GetRawData(), ctx.GetBaseAddress(), ctx.GetSymbolDatabase());
-                 symbols->analyze();
-                 
-                 auto dom = std::make_shared<Analysis::DominatorAnalysis>();
-                 dom->analyze(func);
-                 
-                 Analysis::StructuralAnalysis structural(func, dom, symbols);
-                 auto ast = structural.analyze();
-                 
-                 Lifter::VariableAnalysis lifter(func);
-                 lifter.analyze();
-                 lifter.applyToAST(ast);
-                 
-                 Analysis::DataFlowAnalysis dataflow(ast);
-                 dataflow.analyze();
-                 
-                 Analysis::MemberAccessAnalysis memberAccess(ctx.GetTypeManager());
-                 memberAccess.analyze(ast);
-                 
-                 Codegen::CppEmitter emitter;
-                 std::cout << emitter.generate(ast) << "\n";
-             }
-         }
+            auto dom = std::make_shared<Analysis::DominatorAnalysis>();
+            dom->analyze(func);
 
-         if (export_project) {
-             LOG_INFO(Common, "Exporting project to: {}", export_dir.string());
-             ctx.ExportProject(export_dir.string());
-             LOG_INFO(Common, "Export complete.");
-         }
+            Analysis::StructuralAnalysis structural(func, dom, symbols);
+            auto ast = structural.analyze();
+
+            Lifter::VariableAnalysis lifter(func);
+            lifter.analyze();
+            lifter.applyToAST(ast);
+
+            Analysis::DataFlowAnalysis dataflow(ast);
+            dataflow.analyze();
+
+            Analysis::MemberAccessAnalysis memberAccess(ctx.GetTypeManager());
+            memberAccess.analyze(ast);
+
+            Codegen::CppEmitter emitter;
+            std::cout << emitter.generate(ast) << "\n";
+          }
+        }
+
+        if (export_project) {
+          LOG_INFO(Common, "Exporting project to: {}", export_dir.string());
+          ctx.ExportProject(export_dir.string());
+
+          // Copy assets
+          try {
+            std::filesystem::path assetDest = export_dir / "assets";
+            std::filesystem::create_directories(assetDest);
+
+            LOG_INFO(Common, "Copying assets from {} to {}...",
+                     out_dir.string(), assetDest.string());
+
+            // Get absolute paths for comparison to avoid recursion
+            std::filesystem::path absOut = std::filesystem::absolute(out_dir);
+            std::filesystem::path absExport =
+                std::filesystem::absolute(export_dir);
+            std::filesystem::path absAssetDest =
+                std::filesystem::absolute(assetDest);
+
+            for (const auto &entry :
+                 std::filesystem::directory_iterator(out_dir)) {
+              try {
+                std::filesystem::path entryAbs =
+                    std::filesystem::absolute(entry.path());
+
+                // Use equivalent() for robust path comparison
+                if (std::filesystem::equivalent(entryAbs, absExport)) {
+                  LOG_INFO(Common, "Skipping export directory: {}",
+                           entryAbs.string());
+                  continue;
+                }
+
+                if (std::filesystem::equivalent(entryAbs, absAssetDest)) {
+                  LOG_INFO(Common, "Skipping asset destination directory: {}",
+                           entryAbs.string());
+                  continue;
+                }
+
+                // Copy entry
+                std::filesystem::copy(
+                    entry.path(), assetDest / entry.path().filename(),
+                    std::filesystem::copy_options::recursive |
+                        std::filesystem::copy_options::overwrite_existing);
+              } catch (...) {
+                // entries that don't exist or other errors
+                continue;
+              }
+            }
+          } catch (const std::exception &e) {
+            LOG_ERROR(Common, "Failed to copy assets: {}", e.what());
+          }
+
+          LOG_INFO(Common, "Export complete.");
+        }
       }
 
       return 0;

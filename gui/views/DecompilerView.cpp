@@ -73,6 +73,32 @@ void DecompilerView::Draw(GUIContext &ctx) {
     }
   }
 
+  // ┌─────────────────────────────────────────────────────────────────────────┐
+  // │  Progress Bar for Analysis                                              │
+  // └─────────────────────────────────────────────────────────────────────────┘
+  const auto &progress = decompilerCtx_->GetProgress();
+  if (!progress.isComplete && !progress.currentPhase.empty()) {
+    ImGui::Separator();
+    ImGui::TextColored(ImVec4(0.3f, 0.8f, 1.0f, 1.0f), "Analysis Progress");
+
+    if (progress.currentPhase == "scanning") {
+      ImGui::Text("Scanning for functions: %d prologues found",
+                  progress.prologuesFound);
+      // Indeterminate progress (spinning)
+      float time = (float)ImGui::GetTime();
+      float progress_val = 0.5f + 0.5f * sinf(time * 3.0f);
+      ImGui::ProgressBar(progress_val, ImVec2(-1, 0), "Scanning...");
+    } else if (progress.currentPhase == "analyzing") {
+      ImGui::Text("Analyzing: %d / %d functions", progress.functionsAnalyzed,
+                  progress.prologuesFound);
+      float fraction =
+          progress.prologuesFound > 0
+              ? (float)progress.functionsAnalyzed / progress.prologuesFound
+              : 0.0f;
+      ImGui::ProgressBar(fraction, ImVec2(-1, 0));
+    }
+  }
+
   ImGui::EndChild();
 
   ImGui::SameLine();

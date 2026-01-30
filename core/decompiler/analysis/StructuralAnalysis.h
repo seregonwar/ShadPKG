@@ -26,10 +26,11 @@ namespace ShadPKG::Decompiler::Analysis {
 
 class StructuralAnalysis {
 public:
-  StructuralAnalysis(std::shared_ptr<IR::Function> func,
-                     std::shared_ptr<DominatorAnalysis> domAnalysis,
-                     std::shared_ptr<SymbolAnalysis> symbolAnalysis,
-                     std::shared_ptr<Lifter::VariableAnalysis> varAnalysis = nullptr);
+  StructuralAnalysis(
+      std::shared_ptr<IR::Function> func,
+      std::shared_ptr<DominatorAnalysis> domAnalysis,
+      std::shared_ptr<SymbolAnalysis> symbolAnalysis,
+      std::shared_ptr<Lifter::VariableAnalysis> varAnalysis = nullptr);
 
   // ═══════════════════════════════════════════════════════════════════════
   //  Main Analysis Method
@@ -45,6 +46,12 @@ private:
 
   // Set of blocks already structured/visited to prevent infinite recursion
   std::set<uint64_t> structuredBlocks_;
+
+  // Set of loop headers currently being matched to prevent infinite recursion
+  std::set<uint64_t> activeLoops_;
+
+  // Set of labels that have already been emitted for a goto statement
+  std::set<uint64_t> emittedLabels_;
 
   // ═══════════════════════════════════════════════════════════════════════
   //  Recursive Structuring

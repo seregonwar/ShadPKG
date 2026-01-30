@@ -2,6 +2,8 @@
 #include "analysis/MemberAccessAnalysis.h"
 #include "common/logging/log.h"
 #include <capstone/capstone.h>
+#include <chrono>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -10,7 +12,6 @@
 #include <queue>
 #include <set>
 #include <sstream>
-#include <cstdlib>
 #define JSON_ASSERT(x)
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
@@ -23,6 +24,8 @@ void DecompilerContext::LoadBinary(const std::vector<uint8_t> &data,
   baseAddress_ = baseAddress;
   isAnalyzed_ = false;
   functions_.clear();
+  // Initialize SymbolDatabase
+  symbolDatabase_ = std::make_shared<Analysis::SymbolDatabase>();
 }
 
 bool DecompilerContext::LoadELF(const std::vector<uint8_t> &data) {
@@ -53,7 +56,7 @@ bool DecompilerContext::LoadELF(const std::vector<uint8_t> &data) {
   }
 
   elfOffset_ = elfOffset;
-  const uint8_t* elfBase = data.data() + elfOffset_;
+  const uint8_t *elfBase = data.data() + elfOffset_;
 
   // Parse ELF Header (64-bit)
   uint64_t entryPoint = 0;
@@ -61,14 +64,19 @@ bool DecompilerContext::LoadELF(const std::vector<uint8_t> &data) {
   uint16_t phEntSize = 0;
   uint16_t phNum = 0;
 
-  if (data.size() < elfOffset + 64) return false;
+  if (data.size() < elfOffset + 64)
+    return false;
 
   std::memcpy(&entryPoint, elfBase + 0x18, 8);
   std::memcpy(&phOff, elfBase + 0x20, 8);
   std::memcpy(&phEntSize, elfBase + 0x36, 2);
   std::memcpy(&phNum, elfBase + 0x38, 2);
+  // Capture entry point for later use in ExportProject
+  entryPoint_ = entryPoint;
 
-  LOG_INFO(Common, "ELF Found at offset 0x{:X}. Entry=0x{:X}, PHOff=0x{:X}, PHNum={}", elfOffset, entryPoint, phOff, phNum);
+  LOG_INFO(Common,
+           "ELF Found at offset 0x{:X}. Entry=0x{:X}, PHOff=0x{:X}, PHNum={}",
+           elfOffset, entryPoint, phOff, phNum);
 
   segments_.clear();
   uint64_t minVA = UINT64_MAX;
@@ -76,9 +84,10 @@ bool DecompilerContext::LoadELF(const std::vector<uint8_t> &data) {
   // Parse Program Headers
   for (int i = 0; i < phNum; ++i) {
     size_t currentPhOffset = phOff + (i * phEntSize);
-    if (elfOffset + currentPhOffset + phEntSize > data.size()) break;
+    if (elfOffset + currentPhOffset + phEntSize > data.size())
+      break;
 
-    const uint8_t* phBase = elfBase + currentPhOffset;
+    const uint8_t *phBase = elfBase + currentPhOffset;
 
     uint32_t p_type;
     uint32_t p_flags;
@@ -98,43 +107,47 @@ bool DecompilerContext::LoadELF(const std::vector<uint8_t> &data) {
       Segment seg;
       seg.virtualAddress = p_vaddr;
       // Absolute offset in rawData_
-      seg.fileOffset = elfOffset + p_offset; 
-      seg.size = p_filesz; 
+      seg.fileOffset = elfOffset + p_offset;
+      seg.size = p_filesz;
       segments_.push_back(seg);
 
-      if (p_vaddr < minVA) minVA = p_vaddr;
+      if (p_vaddr < minVA)
+        minVA = p_vaddr;
 
-      LOG_INFO(Common, "Segment: VA=0x{:X}, Offset=0x{:X} (Abs: 0x{:X}), Size=0x{:X}", 
+      LOG_INFO(Common,
+               "Segment: VA=0x{:X}, Offset=0x{:X} (Abs: 0x{:X}), Size=0x{:X}",
                p_vaddr, p_offset, seg.fileOffset, p_filesz);
     }
   }
 
   // Load raw data and set base
   LoadBinary(data, minVA != UINT64_MAX ? minVA : 0x400000);
-  
+
   if (segments_.empty()) {
-      LOG_WARNING(Common, "No PT_LOAD segments found. Falling back to flat mapping from ELF base.");
-      Segment seg;
-      seg.virtualAddress = 0x400000;
-      seg.fileOffset = elfOffset;
-      seg.size = data.size() - elfOffset;
-      segments_.push_back(seg);
-      baseAddress_ = 0x400000;
+    LOG_WARNING(Common, "No PT_LOAD segments found. Falling back to flat "
+                        "mapping from ELF base.");
+    Segment seg;
+    seg.virtualAddress = 0x400000;
+    seg.fileOffset = elfOffset;
+    seg.size = data.size() - elfOffset;
+    segments_.push_back(seg);
+    baseAddress_ = 0x400000;
   }
 
   return true;
 }
 
-bool DecompilerContext::VirtualAddressToFileOffset(uint64_t va, uint64_t &offset) const {
-  for (const auto& seg : segments_) {
+bool DecompilerContext::VirtualAddressToFileOffset(uint64_t va,
+                                                   uint64_t &offset) const {
+  for (const auto &seg : segments_) {
     if (va >= seg.virtualAddress && va < seg.virtualAddress + seg.size) {
       offset = seg.fileOffset + (va - seg.virtualAddress);
       return true;
     }
   }
   if (segments_.empty() && va >= baseAddress_) {
-      offset = va - baseAddress_;
-      return true;
+    offset = va - baseAddress_;
+    return true;
   }
   return false;
 }
@@ -147,9 +160,9 @@ void DecompilerContext::Analyze() {
   std::set<uint64_t> visitedGlobal;
 
   uint64_t entryPoint = baseAddress_;
-  if (rawData_.size() >= elfOffset_ + 0x20 && 
-      rawData_[elfOffset_] == 0x7F && rawData_[elfOffset_ + 1] == 'E') {
-       std::memcpy(&entryPoint, rawData_.data() + elfOffset_ + 0x18, 8);
+  if (rawData_.size() >= elfOffset_ + 0x20 && rawData_[elfOffset_] == 0x7F &&
+      rawData_[elfOffset_ + 1] == 'E') {
+    std::memcpy(&entryPoint, rawData_.data() + elfOffset_ + 0x18, 8);
   }
 
   std::queue<uint64_t> functionQueue;
@@ -158,29 +171,110 @@ void DecompilerContext::Analyze() {
 
   uint64_t epOffset = 0;
   if (VirtualAddressToFileOffset(entryPoint, epOffset)) {
-      if (epOffset + 8 > rawData_.size()) {
-          LOG_ERROR(Common, "Entry Point 0x{:X} is out of file bounds!", entryPoint);
-          return;
-      }
+    if (epOffset + 8 > rawData_.size()) {
+      LOG_ERROR(Common, "Entry Point 0x{:X} is out of file bounds!",
+                entryPoint);
+      return;
+    }
   } else {
-       LOG_ERROR(Common, "Could not map Entry Point 0x{:X} to file offset!", entryPoint);
-       if (entryPoint >= baseAddress_) epOffset = entryPoint - baseAddress_;
+    LOG_ERROR(Common, "Could not map Entry Point 0x{:X} to file offset!",
+              entryPoint);
+    if (entryPoint >= baseAddress_)
+      epOffset = entryPoint - baseAddress_;
   }
 
   int functionsAnalyzed = 0;
   const int MAX_FUNCTIONS = 50000;
 
+  // ┌─────────────────────────────────────────────────────────────────────────┐
+  // │  Run Symbol Analysis early to recover function names from ELF          │
+  // │  This populates symbolDatabase_ with names from .dynsym / .rela.plt    │
+  // └─────────────────────────────────────────────────────────────────────────┘
+  {
+    auto symbolAnalysis = std::make_shared<Analysis::SymbolAnalysis>(
+        rawData_, baseAddress_, symbolDatabase_);
+    symbolAnalysis->analyze();
+    LOG_INFO(Common, "Symbol Analysis complete: {} symbols loaded.",
+             symbolDatabase_ ? symbolDatabase_->getSymbols().size() : 0);
+  }
+
   LOG_INFO(Common, "Starting Function Discovery at 0x{:X}...", entryPoint);
+
+  // ┌─────────────────────────────────────────────────────────────────────────┐
+  // │                    PROLOGUE SCAN FOR ALL FUNCTIONS                      │
+  // │  Many functions are only called via vtables or indirect jumps.          │
+  // │  Scan .text for common x86-64 function prologues:                       │
+  // │    push rbp; mov rbp, rsp  -> 55 48 89 E5                               │
+  // │    push rbx                -> 53                                        │
+  // │    sub rsp, N              -> 48 83 EC XX / 48 81 EC XX XX XX XX        │
+  // └─────────────────────────────────────────────────────────────────────────┘
+  LOG_INFO(Common, "Scanning segments for function prologues...");
+  progress_.currentPhase = "scanning";
+  progress_.prologuesFound = 0;
+  progress_.functionsAnalyzed = 0;
+  progress_.isComplete = false;
+  int prologuesFound = 0;
+
+  for (const auto &seg : segments_) {
+    if (seg.size < 8)
+      continue;
+    uint64_t scanEnd =
+        std::min(seg.fileOffset + seg.size, (uint64_t)rawData_.size()) - 4;
+
+    for (uint64_t off = seg.fileOffset; off < scanEnd; ++off) {
+      uint64_t funcVA = seg.virtualAddress + (off - seg.fileOffset);
+
+      if (visitedGlobal.count(funcVA))
+        continue;
+
+      // Pattern 1: push rbp; mov rbp, rsp (0x55 0x48 0x89 0xE5)
+      bool match = (rawData_[off] == 0x55 && rawData_[off + 1] == 0x48 &&
+                    rawData_[off + 2] == 0x89 && rawData_[off + 3] == 0xE5);
+
+      // Pattern 2: push rbp; mov rsp variants
+      if (!match && rawData_[off] == 0x55) {
+        // Check for sub rsp, imm8 following (48 83 EC XX)
+        if (off + 5 < scanEnd && rawData_[off + 1] == 0x48 &&
+            rawData_[off + 2] == 0x83 && rawData_[off + 3] == 0xEC) {
+          match = true;
+        }
+      }
+
+      if (match) {
+        functionQueue.push(funcVA);
+        visitedGlobal.insert(funcVA);
+        prologuesFound++;
+        progress_.prologuesFound = prologuesFound;
+      }
+    }
+  }
+
+  LOG_INFO(Common, "Found {} candidate functions via prologue scan.",
+           prologuesFound);
 
   while (!functionQueue.empty() && functionsAnalyzed < MAX_FUNCTIONS) {
     uint64_t funcAddr = functionQueue.front();
     functionQueue.pop();
 
     auto func = std::make_shared<IR::Function>();
-    std::stringstream nameSS;
-    nameSS << "sub_" << std::hex << funcAddr;
-    func->name = nameSS.str();
     func->address = funcAddr;
+
+    // ┌─────────────────────────────────────────────────────────────────────────┐
+    // │  Try to recover function name from ELF symbols │
+    // └─────────────────────────────────────────────────────────────────────────┘
+    if (symbolDatabase_) {
+      auto sym = symbolDatabase_->getSymbol(funcAddr);
+      if (sym && !sym->name.empty() &&
+          sym->name.find("sub_") == std::string::npos) {
+        func->name = sym->name;
+      }
+    }
+    if (func->name.empty()) {
+      std::stringstream nameSS;
+      nameSS << "sub_" << std::hex << funcAddr;
+      func->name = nameSS.str();
+    }
+
     func->signature = "void " + func->name + "()";
     func->category = IR::Function::Category::GameLogic;
 
@@ -209,26 +303,27 @@ void DecompilerContext::Analyze() {
 
       for (int i = 0; i < 1000 && !blockEnded; ++i) {
         uint64_t fileOffset = 0;
-        if (!VirtualAddressToFileOffset(currentAddr, fileOffset)) break;
-        
-        if (fileOffset >= rawData_.size()) break;
+        if (!VirtualAddressToFileOffset(currentAddr, fileOffset))
+          break;
+
+        if (fileOffset >= rawData_.size())
+          break;
 
         const uint8_t *code = rawData_.data() + fileOffset;
         size_t code_size = rawData_.size() - fileOffset;
 
         if (code[0] == 0x00 && code[1] == 0x00) {
-             zeroCount++;
-             if (zeroCount > 8) {
-                 blockEnded = true;
-                 break;
-             }
+          zeroCount++;
+          if (zeroCount > 8) {
+            blockEnded = true;
+            break;
+          }
         } else {
-            zeroCount = 0;
+          zeroCount = 0;
         }
 
         cs_insn *insn;
-        size_t count =
-            cs_disasm(handle, code, 15, currentAddr, 1, &insn);
+        size_t count = cs_disasm(handle, code, 15, currentAddr, 1, &insn);
 
         if (count > 0) {
           IR::Instruction instr;
@@ -236,124 +331,259 @@ void DecompilerContext::Analyze() {
 
           instr.opcode = IR::OpCode::NOP;
           switch (insn[0].id) {
-          case X86_INS_MOV: instr.opcode = IR::OpCode::MOV; break;
-          case X86_INS_MOVABS: instr.opcode = IR::OpCode::MOV; break;
-          case X86_INS_MOVAPS: instr.opcode = IR::OpCode::MOV; break;
-          case X86_INS_MOVUPS: instr.opcode = IR::OpCode::MOV; break;
-          case X86_INS_MOVDQA: instr.opcode = IR::OpCode::MOV; break;
-          case X86_INS_MOVDQU: instr.opcode = IR::OpCode::MOV; break;
-          case X86_INS_ADD: instr.opcode = IR::OpCode::ADD; break;
-          case X86_INS_SUB: instr.opcode = IR::OpCode::SUB; break;
-          case X86_INS_RET: instr.opcode = IR::OpCode::RET; break;
-          case X86_INS_CALL: instr.opcode = IR::OpCode::CALL; break;
-          case X86_INS_JMP: instr.opcode = IR::OpCode::JMP; break;
-          case X86_INS_JE: instr.opcode = IR::OpCode::JE; break;
-          case X86_INS_JNE: instr.opcode = IR::OpCode::JNE; break;
-          case X86_INS_CMP: instr.opcode = IR::OpCode::CMP; break;
-          case X86_INS_LEA: instr.opcode = IR::OpCode::LEA; break;
-          
-          case X86_INS_MOVSX: instr.opcode = IR::OpCode::MOVSX; break;
-          case X86_INS_MOVSXD: instr.opcode = IR::OpCode::MOVSX; break;
-          case X86_INS_MOVZX: instr.opcode = IR::OpCode::MOVZX; break;
-          case X86_INS_MOVSD: instr.opcode = IR::OpCode::MOV; break; // Treat as MOV
-          case X86_INS_MOVSS: instr.opcode = IR::OpCode::MOV; break; // Treat as MOV
-          
-          case X86_INS_BSWAP: instr.opcode = IR::OpCode::BSWAP; break;
-          case X86_INS_FISTTP: instr.opcode = IR::OpCode::FISTTP; break;
-          case X86_INS_LEAVE: instr.opcode = IR::OpCode::LEAVE; break;
-          case X86_INS_INT: instr.opcode = IR::OpCode::INT; break; // Software interrupt, often for debug/syscall
+          case X86_INS_MOV:
+            instr.opcode = IR::OpCode::MOV;
+            break;
+          case X86_INS_MOVABS:
+            instr.opcode = IR::OpCode::MOV;
+            break;
+          case X86_INS_MOVAPS:
+            instr.opcode = IR::OpCode::MOV;
+            break;
+          case X86_INS_MOVUPS:
+            instr.opcode = IR::OpCode::MOV;
+            break;
+          case X86_INS_MOVDQA:
+            instr.opcode = IR::OpCode::MOV;
+            break;
+          case X86_INS_MOVDQU:
+            instr.opcode = IR::OpCode::MOV;
+            break;
+          case X86_INS_ADD:
+            instr.opcode = IR::OpCode::ADD;
+            break;
+          case X86_INS_SUB:
+            instr.opcode = IR::OpCode::SUB;
+            break;
+          case X86_INS_RET:
+            instr.opcode = IR::OpCode::RET;
+            break;
+          case X86_INS_CALL:
+            instr.opcode = IR::OpCode::CALL;
+            break;
+          case X86_INS_JMP:
+            instr.opcode = IR::OpCode::JMP;
+            break;
+          case X86_INS_JE:
+            instr.opcode = IR::OpCode::JE;
+            break;
+          case X86_INS_JNE:
+            instr.opcode = IR::OpCode::JNE;
+            break;
+          case X86_INS_CMP:
+            instr.opcode = IR::OpCode::CMP;
+            break;
+          case X86_INS_LEA:
+            instr.opcode = IR::OpCode::LEA;
+            break;
+
+          case X86_INS_MOVSX:
+            instr.opcode = IR::OpCode::MOVSX;
+            break;
+          case X86_INS_MOVSXD:
+            instr.opcode = IR::OpCode::MOVSX;
+            break;
+          case X86_INS_MOVZX:
+            instr.opcode = IR::OpCode::MOVZX;
+            break;
+          case X86_INS_MOVSD:
+            instr.opcode = IR::OpCode::MOV;
+            break; // Treat as MOV
+          case X86_INS_MOVSS:
+            instr.opcode = IR::OpCode::MOV;
+            break; // Treat as MOV
+
+          case X86_INS_BSWAP:
+            instr.opcode = IR::OpCode::BSWAP;
+            break;
+          case X86_INS_FISTTP:
+            instr.opcode = IR::OpCode::FISTTP;
+            break;
+          case X86_INS_LEAVE:
+            instr.opcode = IR::OpCode::LEAVE;
+            break;
+          case X86_INS_INT:
+            instr.opcode = IR::OpCode::INT;
+            break; // Software interrupt, often for debug/syscall
 
           // AVX / VEX Support
-          case X86_INS_VMOVSS:  instr.opcode = IR::OpCode::MOV; break;
-          case X86_INS_VMOVSD:  instr.opcode = IR::OpCode::MOV; break;
-          case X86_INS_VMOVAPS: instr.opcode = IR::OpCode::MOV; break;
-          case X86_INS_VMOVUPS: instr.opcode = IR::OpCode::MOV; break;
-          case X86_INS_VMOVAPD: instr.opcode = IR::OpCode::MOV; break;
-          case X86_INS_VMOVUPD: instr.opcode = IR::OpCode::MOV; break;
-          case X86_INS_VADDSS:  instr.opcode = IR::OpCode::ADD; break;
-          case X86_INS_VADDSD:  instr.opcode = IR::OpCode::ADD; break;
-          case X86_INS_VSUBSS:  instr.opcode = IR::OpCode::SUB; break;
-          case X86_INS_VSUBSD:  instr.opcode = IR::OpCode::SUB; break;
-          case X86_INS_VMULSS:  instr.opcode = IR::OpCode::MUL; break;
-          case X86_INS_VMULSD:  instr.opcode = IR::OpCode::MUL; break;
-          case X86_INS_VDIVSS:  instr.opcode = IR::OpCode::DIV; break;
-          case X86_INS_VDIVSD:  instr.opcode = IR::OpCode::DIV; break;
-          case X86_INS_VXORPS:  instr.opcode = IR::OpCode::XOR; break;
-          case X86_INS_VXORPD:  instr.opcode = IR::OpCode::XOR; break;
-          case X86_INS_VANDPS:  instr.opcode = IR::OpCode::AND; break;
-          case X86_INS_VANDPD:  instr.opcode = IR::OpCode::AND; break;
-          case X86_INS_VORPS:   instr.opcode = IR::OpCode::OR; break;
-          case X86_INS_VORPD:   instr.opcode = IR::OpCode::OR; break;
-          case X86_INS_VUCOMISS: instr.opcode = IR::OpCode::CMP; break;
-          case X86_INS_VUCOMISD: instr.opcode = IR::OpCode::CMP; break;
-          case X86_INS_VPCMPGTB: case X86_INS_VPCMPGTW: case X86_INS_VPCMPGTD: case X86_INS_VPCMPGTQ:
-              instr.opcode = IR::OpCode::CMP; break;
+          case X86_INS_VMOVSS:
+            instr.opcode = IR::OpCode::MOV;
+            break;
+          case X86_INS_VMOVSD:
+            instr.opcode = IR::OpCode::MOV;
+            break;
+          case X86_INS_VMOVAPS:
+            instr.opcode = IR::OpCode::MOV;
+            break;
+          case X86_INS_VMOVUPS:
+            instr.opcode = IR::OpCode::MOV;
+            break;
+          case X86_INS_VMOVAPD:
+            instr.opcode = IR::OpCode::MOV;
+            break;
+          case X86_INS_VMOVUPD:
+            instr.opcode = IR::OpCode::MOV;
+            break;
+          case X86_INS_VADDSS:
+            instr.opcode = IR::OpCode::ADD;
+            break;
+          case X86_INS_VADDSD:
+            instr.opcode = IR::OpCode::ADD;
+            break;
+          case X86_INS_VSUBSS:
+            instr.opcode = IR::OpCode::SUB;
+            break;
+          case X86_INS_VSUBSD:
+            instr.opcode = IR::OpCode::SUB;
+            break;
+          case X86_INS_VMULSS:
+            instr.opcode = IR::OpCode::MUL;
+            break;
+          case X86_INS_VMULSD:
+            instr.opcode = IR::OpCode::MUL;
+            break;
+          case X86_INS_VDIVSS:
+            instr.opcode = IR::OpCode::DIV;
+            break;
+          case X86_INS_VDIVSD:
+            instr.opcode = IR::OpCode::DIV;
+            break;
+          case X86_INS_VXORPS:
+            instr.opcode = IR::OpCode::XOR;
+            break;
+          case X86_INS_VXORPD:
+            instr.opcode = IR::OpCode::XOR;
+            break;
+          case X86_INS_VANDPS:
+            instr.opcode = IR::OpCode::AND;
+            break;
+          case X86_INS_VANDPD:
+            instr.opcode = IR::OpCode::AND;
+            break;
+          case X86_INS_VORPS:
+            instr.opcode = IR::OpCode::OR;
+            break;
+          case X86_INS_VORPD:
+            instr.opcode = IR::OpCode::OR;
+            break;
+          case X86_INS_VUCOMISS:
+            instr.opcode = IR::OpCode::CMP;
+            break;
+          case X86_INS_VUCOMISD:
+            instr.opcode = IR::OpCode::CMP;
+            break;
+          case X86_INS_VPCMPGTB:
+          case X86_INS_VPCMPGTW:
+          case X86_INS_VPCMPGTD:
+          case X86_INS_VPCMPGTQ:
+            instr.opcode = IR::OpCode::CMP;
+            break;
 
           // Stack
-          case X86_INS_PUSH: instr.opcode = IR::OpCode::PUSH; break;
-          case X86_INS_POP: instr.opcode = IR::OpCode::POP; break;
+          case X86_INS_PUSH:
+            instr.opcode = IR::OpCode::PUSH;
+            break;
+          case X86_INS_POP:
+            instr.opcode = IR::OpCode::POP;
+            break;
 
           // Logic/Shift
-          case X86_INS_AND: instr.opcode = IR::OpCode::AND; break;
-          case X86_INS_OR: instr.opcode = IR::OpCode::OR; break;
-          case X86_INS_XOR: instr.opcode = IR::OpCode::XOR; break;
-          case X86_INS_SHL: instr.opcode = IR::OpCode::SHL; break;
-          case X86_INS_SHR: instr.opcode = IR::OpCode::SHR; break;
-          case X86_INS_SAL: instr.opcode = IR::OpCode::SHL; break;
-          case X86_INS_SAR: instr.opcode = IR::OpCode::SHR; break; // Treat arithmetic shift as logical for now or add SAR
-          case X86_INS_TEST: instr.opcode = IR::OpCode::AND; break; // TEST is mostly AND for flags
+          case X86_INS_AND:
+            instr.opcode = IR::OpCode::AND;
+            break;
+          case X86_INS_OR:
+            instr.opcode = IR::OpCode::OR;
+            break;
+          case X86_INS_XOR:
+            instr.opcode = IR::OpCode::XOR;
+            break;
+          case X86_INS_SHL:
+            instr.opcode = IR::OpCode::SHL;
+            break;
+          case X86_INS_SHR:
+            instr.opcode = IR::OpCode::SHR;
+            break;
+          case X86_INS_SAL:
+            instr.opcode = IR::OpCode::SHL;
+            break;
+          case X86_INS_SAR:
+            instr.opcode = IR::OpCode::SHR;
+            break; // Treat arithmetic shift as logical for now or add SAR
+          case X86_INS_TEST:
+            instr.opcode = IR::OpCode::AND;
+            break; // TEST is mostly AND for flags
 
           // Arithmetic
-          case X86_INS_INC: instr.opcode = IR::OpCode::ADD; break; // Handled specially or mapped to ADD 1
-          case X86_INS_DEC: instr.opcode = IR::OpCode::SUB; break; // Handled specially or mapped to SUB 1
-          case X86_INS_NEG: instr.opcode = IR::OpCode::SUB; break; // 0 - x? Need proper unary op
-          case X86_INS_NOT: instr.opcode = IR::OpCode::XOR; break; // ~x (Need unary op really)
-          case X86_INS_MUL: instr.opcode = IR::OpCode::MUL; break;
-          case X86_INS_IMUL: instr.opcode = IR::OpCode::MUL; break;
-          case X86_INS_DIV: instr.opcode = IR::OpCode::DIV; break;
-          case X86_INS_IDIV: instr.opcode = IR::OpCode::DIV; break;
+          case X86_INS_INC:
+            instr.opcode = IR::OpCode::ADD;
+            break; // Handled specially or mapped to ADD 1
+          case X86_INS_DEC:
+            instr.opcode = IR::OpCode::SUB;
+            break; // Handled specially or mapped to SUB 1
+          case X86_INS_NEG:
+            instr.opcode = IR::OpCode::SUB;
+            break; // 0 - x? Need proper unary op
+          case X86_INS_NOT:
+            instr.opcode = IR::OpCode::XOR;
+            break; // ~x (Need unary op really)
+          case X86_INS_MUL:
+            instr.opcode = IR::OpCode::MUL;
+            break;
+          case X86_INS_IMUL:
+            instr.opcode = IR::OpCode::MUL;
+            break;
+          case X86_INS_DIV:
+            instr.opcode = IR::OpCode::DIV;
+            break;
+          case X86_INS_IDIV:
+            instr.opcode = IR::OpCode::DIV;
+            break;
 
-          default: break;
+          default:
+            break;
           }
           instr.disassembly =
               std::string(insn[0].mnemonic) + " " + insn[0].op_str;
-          
-          if (insn[0].detail) {
-              for (int j = 0; j < insn[0].detail->x86.op_count; ++j) {
-                  const auto& op = insn[0].detail->x86.operands[j];
-                  IR::Operand irOp;
-                  if (op.type == X86_OP_REG) {
-                      irOp.type = IR::Operand::Type::Register;
-                      irOp.value = op.reg;
-                      irOp.regName = cs_reg_name(handle, op.reg);
-                  } else if (op.type == X86_OP_IMM) {
-                      irOp.type = IR::Operand::Type::Immediate;
-                      irOp.value = op.imm;
-                  } else if (op.type == X86_OP_MEM) {
-                      irOp.type = IR::Operand::Type::Memory;
-                      // Store raw info for advanced lifting
-                      irOp.memBase = op.mem.base;
-                      irOp.memBaseName = (op.mem.base != X86_REG_INVALID) ? cs_reg_name(handle, op.mem.base) : "";
-                      irOp.memDisp = op.mem.disp;
 
-                      if (op.mem.base == X86_REG_RIP) {
-                          irOp.value = insn[0].address + insn[0].size + op.mem.disp;
-                          irOp.name = "RIP";
-                      } else if (op.mem.base == X86_REG_RSP) {
-                          irOp.name = "RSP";
-                          irOp.value = (uint64_t)op.mem.disp;
-                      } else if (op.mem.base == X86_REG_RBP) {
-                          irOp.name = "RBP";
-                          irOp.value = (uint64_t)op.mem.disp;
-                      } else {
-                          irOp.value = 0; 
-                          irOp.name = "MEM";
-                      }
-                  } else {
-                      irOp.type = IR::Operand::Type::Variable;
-                  }
-                  instr.operands.push_back(irOp);
+          if (insn[0].detail) {
+            for (int j = 0; j < insn[0].detail->x86.op_count; ++j) {
+              const auto &op = insn[0].detail->x86.operands[j];
+              IR::Operand irOp;
+              if (op.type == X86_OP_REG) {
+                irOp.type = IR::Operand::Type::Register;
+                irOp.value = op.reg;
+                irOp.regName = cs_reg_name(handle, op.reg);
+              } else if (op.type == X86_OP_IMM) {
+                irOp.type = IR::Operand::Type::Immediate;
+                irOp.value = op.imm;
+              } else if (op.type == X86_OP_MEM) {
+                irOp.type = IR::Operand::Type::Memory;
+                // Store raw info for advanced lifting
+                irOp.memBase = op.mem.base;
+                irOp.memBaseName = (op.mem.base != X86_REG_INVALID)
+                                       ? cs_reg_name(handle, op.mem.base)
+                                       : "";
+                irOp.memDisp = op.mem.disp;
+
+                if (op.mem.base == X86_REG_RIP) {
+                  irOp.value = insn[0].address + insn[0].size + op.mem.disp;
+                  irOp.name = "RIP";
+                } else if (op.mem.base == X86_REG_RSP) {
+                  irOp.name = "RSP";
+                  irOp.value = (uint64_t)op.mem.disp;
+                } else if (op.mem.base == X86_REG_RBP) {
+                  irOp.name = "RBP";
+                  irOp.value = (uint64_t)op.mem.disp;
+                } else {
+                  irOp.value = 0;
+                  irOp.name = "MEM";
+                }
+              } else {
+                irOp.type = IR::Operand::Type::Variable;
               }
+              instr.operands.push_back(irOp);
+            }
           }
 
           bb->instructions.push_back(instr);
@@ -412,15 +642,18 @@ void DecompilerContext::Analyze() {
     cs_close(&handle);
     functions_.push_back(func);
     functionsAnalyzed++;
+    progress_.functionsAnalyzed = functionsAnalyzed;
+    progress_.currentPhase = "analyzing";
   }
 
   LOG_INFO(Common, "Discovered {} functions.", functions_.size());
+  progress_.currentPhase = "complete";
+  progress_.isComplete = true;
   isAnalyzed_ = true;
 }
 
 void DecompilerContext::AnalyzeFunction(uint64_t startAddress,
-                                        std::set<uint64_t> &visitedGlobal) {
-}
+                                        std::set<uint64_t> &visitedGlobal) {}
 
 void DecompilerContext::ExportProject(const std::string &outPath) {
   std::filesystem::path root(outPath);
@@ -436,58 +669,120 @@ void DecompilerContext::ExportProject(const std::string &outPath) {
   std::vector<std::shared_ptr<AST::FunctionAST>> analyzedASTs;
   analyzedASTs.reserve(functions_.size());
 
-  // --- PASS 1: Full Analysis ---
+  // ┌─────────────────────────────────────────────────────────────────────────┐
+  // │  PASS 1: Full Analysis with progress output and timeout protection      │
+  // └─────────────────────────────────────────────────────────────────────────┘
+  size_t skippedCount = 0;
+  auto globalStart = std::chrono::steady_clock::now();
+
   for (size_t i = 0; i < functions_.size(); ++i) {
     auto func = functions_[i];
 
+    // Progress output every 100 functions
+    if (i % 100 == 0 || i == functions_.size() - 1) {
+      auto elapsed = std::chrono::steady_clock::now() - globalStart;
+      auto secs =
+          std::chrono::duration_cast<std::chrono::seconds>(elapsed).count();
+      std::cout << "\r[" << (i + 1) << "/" << functions_.size() << "] "
+                << "Analyzing... (" << secs << "s, " << skippedCount
+                << " skipped)" << std::flush;
+    }
+
     size_t funcSize = 0;
-    for(const auto& bb : func->basicBlocks) {
-        if(!bb->instructions.empty())
-            funcSize += (bb->endAddress - bb->startAddress);
+    for (const auto &bb : func->basicBlocks) {
+      if (!bb->instructions.empty())
+        funcSize += (bb->endAddress - bb->startAddress);
     }
 
-    LOG_INFO(Common, "Analyzing function {} (Size: {} bytes)...", func->name, funcSize);
-
-    auto dom = std::make_shared<Analysis::DominatorAnalysis>();
-    dom->analyze(func);
-
-    // 3. Variable Lifting
-    auto lifter = std::make_shared<Lifter::VariableAnalysis>(func);
-    lifter->analyze();
-
-    // 4. Structural Analysis
-    Analysis::StructuralAnalysis structural(func, dom, symbols, lifter);
-    auto ast = structural.analyze();
-
-    if (!ast->body || ast->body->statements.empty()) {
-        LOG_INFO(Common, "Warning: Function {} produced empty AST.", func->name);
+    // Skip very large functions (likely data, not code)
+    if (funcSize > 100000) {
+      LOG_INFO(Common, "Skipping huge function {} ({}KB)", func->name,
+               funcSize / 1024);
+      skippedCount++;
+      continue;
     }
 
-    // Apply locals to AST
-    lifter->applyToAST(ast);
+    auto funcStart = std::chrono::steady_clock::now();
 
-    // 4b. Apply User Types
-    for (auto &local : ast->locals) {
-      auto userType = GetUserVarType(func->address, local.stackOffset);
-      if (userType) {
-        local.complexType = userType;
+    try {
+      auto dom = std::make_shared<Analysis::DominatorAnalysis>();
+      dom->analyze(func);
+
+      // Timeout check after dominator analysis
+      auto elapsed = std::chrono::steady_clock::now() - funcStart;
+      if (elapsed > std::chrono::seconds(5)) {
+        LOG_INFO(Common, "Skipping {} (dominator timeout)", func->name);
+        skippedCount++;
+        continue;
       }
+
+      // 3. Variable Lifting
+      auto lifter = std::make_shared<Lifter::VariableAnalysis>(func);
+      lifter->analyze();
+
+      // 4. Structural Analysis
+      Analysis::StructuralAnalysis structural(func, dom, symbols, lifter);
+      auto ast = structural.analyze();
+
+      // Timeout check after structural analysis
+      elapsed = std::chrono::steady_clock::now() - funcStart;
+      if (elapsed > std::chrono::seconds(10)) {
+        LOG_INFO(Common, "Skipping {} (structural timeout)", func->name);
+        skippedCount++;
+        continue;
+      }
+
+      if (!ast->body || ast->body->statements.empty()) {
+        // Empty function - still add stub
+      }
+
+      // Apply locals to AST
+      lifter->applyToAST(ast);
+
+      // 4b. Apply User Types
+      for (auto &local : ast->locals) {
+        auto userType = GetUserVarType(func->address, local.stackOffset);
+        if (userType) {
+          local.complexType = userType;
+        }
+      }
+
+      Analysis::DataFlowAnalysis dataflow(ast);
+      dataflow.analyze();
+
+      Analysis::MemberAccessAnalysis memberAccess(typeManager_);
+      memberAccess.analyze(ast);
+
+      analyzedASTs.push_back(ast);
+      SetFunctionParamCount(func->address, (int)ast->parameters.size());
+
+    } catch (const std::exception &e) {
+      LOG_ERROR(Common, "Exception analyzing {}: {}", func->name, e.what());
+      skippedCount++;
+      continue;
     }
-
-    Analysis::DataFlowAnalysis dataflow(ast);
-    dataflow.analyze();
-
-    Analysis::MemberAccessAnalysis memberAccess(typeManager_);
-    memberAccess.analyze(ast);
-
-    analyzedASTs.push_back(ast);
   }
+
+  std::cout << std::endl; // Newline after progress
+  LOG_INFO(Common, "Analysis complete: {} functions OK, {} skipped",
+           analyzedASTs.size(), skippedCount);
 
   // --- PASS 2: Export Types ---
   {
     std::ofstream hTypes(root / "include" / "types.h");
     hTypes << "#pragma once\n";
     hTypes << "#include <cstdint>\n\n";
+    hTypes << "#if defined(__GNUC__) || defined(__clang__)\n";
+    hTypes << "#define _byteswap_uint64 __builtin_bswap64\n";
+    hTypes << "#endif\n\n";
+    hTypes << "static inline double as_double(uint64_t i) { return "
+              "*(double*)&i; }\n";
+    hTypes
+        << "static inline float as_float(uint32_t i) { return *(float*)&i; }\n";
+    hTypes << "static inline uint64_t as_uint64(double d) { return "
+              "*(uint64_t*)&d; }\n";
+    hTypes << "static inline uint32_t as_uint32(float f) { return "
+              "*(uint32_t*)&f; }\n\n";
 
     for (const auto &[name, type] : typeManager_->getAllTypes()) {
       if (type->getKind() == Analysis::Type::Kind::Struct) {
@@ -511,30 +806,267 @@ void DecompilerContext::ExportProject(const std::string &outPath) {
 
   // --- PASS 3: Export Functions ---
   {
+    std::map<std::string, std::shared_ptr<AST::FunctionAST>> nameToAst;
+    for (auto &ast : analyzedASTs) {
+      nameToAst[ast->name] = ast;
+    }
+
     std::ofstream hFuncs(root / "include" / "functions.h");
     hFuncs << "#pragma once\n";
-    hFuncs << "#include \"types.h\"\n\n";
+    hFuncs << "#include \"types.h\"\n";
+    hFuncs << "#include <cstdint>\n\n";
+
     for (const auto &func : functions_) {
-      hFuncs << func->signature << ";\n";
+      if (nameToAst.count(func->name)) {
+        auto &ast = nameToAst[func->name];
+        hFuncs << ast->returnType << " " << ast->name << "(";
+        for (size_t j = 0; j < ast->parameters.size(); ++j) {
+          if (j > 0)
+            hFuncs << ", ";
+          hFuncs << ast->parameters[j].getTypeName() << " "
+                 << ast->parameters[j].name;
+        }
+        hFuncs << ");\n";
+      } else {
+        // Fallback for skipped functions: provide generic prototype to allow
+        // callers to compile
+        hFuncs << "int64_t " << func->name
+               << "(int64_t a1 = 0, int64_t a2 = 0, int64_t a3 = 0, "
+                  "int64_t a4 = 0, int64_t a5 = 0, int64_t a6 = 0);\n";
+      }
     }
   }
 
   // --- PASS 4: Export Source ---
+  std::cout << "Exporting source code..." << std::endl;
+  LOG_INFO(Common, "Starting source export of {} functions",
+           analyzedASTs.size());
+
   int fileCounter = 0;
   int funcsPerFile = 50;
 
   for (size_t i = 0; i < analyzedASTs.size(); i += funcsPerFile) {
+    if (i % 1000 == 0) {
+      std::cout << "\rExporting chunks... " << i << "/" << analyzedASTs.size()
+                << std::flush;
+    }
+
     std::string filename = "segment_" + std::to_string(fileCounter++) + ".cpp";
     std::ofstream cppFile(root / "src" / filename);
 
     cppFile << "#include \"../include/functions.h\"\n";
-    cppFile << "#include \"../include/types.h\"\n\n";
+    cppFile << "#include \"../include/types.h\"\n";
+    cppFile << "#include \"../include/globals.h\"\n\n";
 
     for (size_t j = i; j < i + funcsPerFile && j < analyzedASTs.size(); ++j) {
       auto ast = analyzedASTs[j];
+      try {
+        Codegen::CppEmitter emitter;
+        cppFile << emitter.generate(ast) << "\n\n";
+      } catch (const std::exception &e) {
+        LOG_ERROR(Common, "Failed to generate code for {}: {}", ast->name,
+                  e.what());
+        cppFile << "// Error generating " << ast->name << ": " << e.what()
+                << "\n\n";
+      } catch (...) {
+        LOG_ERROR(Common, "Unknown failure generating code for {}", ast->name);
+        cppFile << "// Unknown error generating " << ast->name << "\n\n";
+      }
+    }
+  }
+  std::cout << std::endl;
 
-      Codegen::CppEmitter emitter;
-      cppFile << emitter.generate(ast) << "\n\n";
+  // --- PASS 5: Export Globals ---
+  {
+    std::ofstream hGlobals(root / "include" / "globals.h");
+    std::ofstream cppGlobals(root / "src" / "globals.cpp");
+
+    hGlobals << "#pragma once\n";
+    hGlobals << "#include \"types.h\"\n";
+    hGlobals << "#include <cstdint>\n\n";
+
+    cppGlobals << "#include \"../include/globals.h\"\n\n";
+
+    // We need to iterate the symbol database for globals
+    if (symbolDatabase_) {
+      const auto &syms = symbolDatabase_->getSymbols();
+      for (const auto &[addr, sym] : syms) {
+        if (sym.type == Analysis::SymbolType::GlobalVariable) {
+          // Parse type from name: g_TYPE_ADDR
+          std::string typeName = "int64_t";
+
+          size_t firstUnderscore = sym.name.find('_');
+          size_t lastUnderscore = sym.name.rfind('_');
+
+          if (firstUnderscore != std::string::npos &&
+              lastUnderscore != std::string::npos &&
+              lastUnderscore > firstUnderscore) {
+            typeName = sym.name.substr(firstUnderscore + 1,
+                                       lastUnderscore - (firstUnderscore + 1));
+          }
+
+          // Read initial value from memory
+          std::string initVal = "0";
+          uint64_t offset = addr - baseAddress_;
+
+          if (offset < rawData_.size()) {
+            std::stringstream ss;
+            ss << "0x" << std::hex;
+
+            if (typeName.find("int8") != std::string::npos ||
+                typeName == "char" || typeName == "bool") {
+              uint16_t val =
+                  rawData_[offset]; // Use uint16 for stream formatting of uint8
+              ss << val;
+              initVal = ss.str();
+            } else if (typeName.find("int16") != std::string::npos ||
+                       typeName == "short") {
+              if (offset + 2 <= rawData_.size()) {
+                uint16_t val =
+                    *reinterpret_cast<const uint16_t *>(&rawData_[offset]);
+                ss << val;
+                initVal = ss.str();
+              }
+            } else if (typeName.find("int32") != std::string::npos ||
+                       typeName == "int" || typeName == "float") {
+              if (offset + 4 <= rawData_.size()) {
+                uint32_t val =
+                    *reinterpret_cast<const uint32_t *>(&rawData_[offset]);
+                ss << val;
+                initVal = ss.str();
+              }
+              if (typeName == "float")
+                initVal = "0.0f"; // Placeholder
+            } else {              // int64, long, double, pointer
+              if (offset + 8 <= rawData_.size()) {
+                uint64_t val =
+                    *reinterpret_cast<const uint64_t *>(&rawData_[offset]);
+                ss << val;
+                initVal = ss.str();
+              }
+              if (typeName == "double")
+                initVal = "0.0"; // Placeholder
+              if (typeName == "float")
+                initVal = "0.0f";
+            }
+          } else if (typeName == "double") {
+            initVal = "0.0";
+          } else if (typeName == "float") {
+            initVal = "0.0f";
+          } else {
+            initVal = "{}"; // Aggregate init/default
+          }
+
+          hGlobals << "extern " << typeName << " " << sym.name << "; // 0x"
+                   << std::hex << addr << "\n";
+          cppGlobals << typeName << " " << sym.name << " = " << initVal
+                     << ";\n";
+        }
+      }
+    }
+  }
+
+  // --- PASS 6: Export Stubs, Runtime and Main ---
+  {
+    std::filesystem::create_directories(root / "assets");
+
+    std::map<std::string, std::shared_ptr<AST::FunctionAST>> nameToAst;
+    for (auto &ast : analyzedASTs) {
+      nameToAst[ast->name] = ast;
+    }
+
+    // 1. Export Stubs
+    {
+      std::ofstream stubs(root / "src" / "stubs.cpp");
+      stubs << "#include \"../include/functions.h\"\n\n";
+      for (const auto &func : functions_) {
+        if (nameToAst.find(func->name) == nameToAst.end()) {
+          stubs << "int64_t " << func->name
+                << "(int64_t a1, int64_t a2, int64_t a3, "
+                   "int64_t a4, int64_t a5, int64_t a6) { return 0; }\n";
+        }
+      }
+    }
+
+    // 2. Export Runtime Header
+    {
+      std::ofstream rtH(root / "include" / "runtime.h");
+      rtH << "#pragma once\n";
+      rtH << "#include <cstdint>\n";
+      rtH << "#include <string>\n\n";
+      rtH << "void runtime_init();\n";
+      rtH << "std::string resolve_path(const std::string& ps4_path);\n\n";
+      rtH << "// List of mocked PS4 system calls\n";
+      rtH << "extern \"C\" {\n";
+      rtH << "    int sceKernelOpen(const char* path, int flags, int mode);\n";
+      rtH << "    int sceKernelRead(int fd, void* buf, size_t nbyte);\n";
+      rtH << "    int sceKernelClose(int fd);\n";
+      rtH << "    // Add more mocks as needed...\n";
+      rtH << "}\n";
+    }
+
+    // 3. Export Runtime Implementation
+    {
+      std::ofstream rtCpp(root / "src" / "runtime.cpp");
+      rtCpp << "#include \"../include/runtime.h\"\n";
+      rtCpp << "#include <iostream>\n";
+      rtCpp << "#include <filesystem>\n";
+      rtCpp << "#include <map>\n\n";
+      rtCpp << "void runtime_init() {\n";
+      rtCpp << "    std::cout << \"[RUNTIME] Initializing PS4 Mock "
+               "Runtime...\" << std::endl;\n";
+      rtCpp << "    std::cout << \"[RUNTIME] VFS Root: \" << "
+               "std::filesystem::current_path() / \"assets\" << std::endl;\n";
+      rtCpp << "}\n\n";
+      rtCpp << "std::string resolve_path(const std::string& ps4_path) {\n";
+      rtCpp << "    // Implementation of path redirection (e.g. /app0/ -> "
+               "assets/)\n";
+      rtCpp << "    std::string path = ps4_path;\n";
+      rtCpp << "    if (path.find(\"/app0/\") == 0) {\n";
+      rtCpp << "        return \"assets/\" + path.substr(6);\n";
+      rtCpp << "    }\n";
+      rtCpp << "    return \"assets/\" + path;\n";
+      rtCpp << "}\n\n";
+      rtCpp << "extern \"C\" {\n";
+      rtCpp
+          << "    int sceKernelOpen(const char* path, int flags, int mode) {\n";
+      rtCpp << "        std::cout << \"[RUNTIME] sceKernelOpen: \" << path << "
+               "std::endl;\n";
+      rtCpp << "        return -1; // Mock return\n";
+      rtCpp << "    }\n";
+      rtCpp << "    int sceKernelRead(int fd, void* buf, size_t nbyte) { "
+               "return 0; }\n";
+      rtCpp << "    int sceKernelClose(int fd) { return 0; }\n";
+      rtCpp << "}\n";
+    }
+
+    // 4. Export Main
+    {
+      std::ofstream mainCpp(root / "src" / "main.cpp");
+      mainCpp << "#include \"../include/functions.h\"\n";
+      mainCpp << "#include \"../include/runtime.h\"\n";
+      mainCpp << "#include <iostream>\n\n";
+      mainCpp << "int main() {\n";
+      mainCpp << "    runtime_init();\n";
+
+      // Find entry point name
+      std::string entryName = "sub_" + std::to_string(entryPoint_);
+      auto it =
+          std::find_if(functions_.begin(), functions_.end(),
+                       [this](auto f) { return f->address == entryPoint_; });
+      if (it != functions_.end()) {
+        entryName = (*it)->name;
+      }
+
+      mainCpp << "    std::cout << \"[RUNTIME] Starting execution at "
+              << entryName << " (0x" << std::hex << entryPoint_
+              << ")...\" << std::endl;\n";
+      mainCpp << "    // " << entryName
+              << "();\n"; // Commented out for safety until user is ready
+      mainCpp << "    std::cout << \"[RUNTIME] Execution finished (Stub).\" << "
+                 "std::endl;\n";
+      mainCpp << "    return 0;\n";
+      mainCpp << "}\n";
     }
   }
 
@@ -543,6 +1075,7 @@ void DecompilerContext::ExportProject(const std::string &outPath) {
     cmake << "cmake_minimum_required(VERSION 3.10)\n";
     cmake << "project(DecompiledGame CXX)\n\n";
     cmake << "set(CMAKE_CXX_STANDARD 17)\n";
+    cmake << "add_compile_options(-fbracket-depth=1024)\n";
     cmake << "include_directories(include)\n\n";
     cmake << "file(GLOB SOURCES \"src/*.cpp\")\n";
     cmake << "add_executable(Game ${SOURCES})\n";
@@ -667,45 +1200,38 @@ bool DecompilerContext::SaveProject(const std::string &path) {
 
   // Symbols
   if (symbolDatabase_) {
-      for (const auto& [addr, sym] : symbolDatabase_->getSymbols()) {
-          j["symbols"].push_back({
-              {"address", addr},
-              {"name", sym.name},
-              {"type", (int)sym.type},
-              {"source", (int)sym.source}
-          });
-      }
+    for (const auto &[addr, sym] : symbolDatabase_->getSymbols()) {
+      j["symbols"].push_back({{"address", addr},
+                              {"name", sym.name},
+                              {"type", (int)sym.type},
+                              {"source", (int)sym.source}});
+    }
   }
 
   // Structs
-  for (const auto& [name, type] : typeManager_->getAllTypes()) {
-      if (type->getKind() == Analysis::Type::Kind::Struct) {
-          auto s = std::dynamic_pointer_cast<Analysis::StructType>(type);
-          json sJson;
-          sJson["name"] = name;
-          for (const auto& m : s->getMembers()) {
-              sJson["members"].push_back({
-                  {"name", m.name},
-                  {"offset", m.offset},
-                  {"type", m.type->toString()} 
-              });
-          }
-          j["structs"].push_back(sJson);
+  for (const auto &[name, type] : typeManager_->getAllTypes()) {
+    if (type->getKind() == Analysis::Type::Kind::Struct) {
+      auto s = std::dynamic_pointer_cast<Analysis::StructType>(type);
+      json sJson;
+      sJson["name"] = name;
+      for (const auto &m : s->getMembers()) {
+        sJson["members"].push_back({{"name", m.name},
+                                    {"offset", m.offset},
+                                    {"type", m.type->toString()}});
       }
+      j["structs"].push_back(sJson);
+    }
   }
 
   // User Overrides (Stack Types)
   // userVarTypes_: FunctionAddr -> (StackOffset -> Type)
-  for (const auto& [funcAddr, offsets] : userVarTypes_) {
-      for (const auto& [offset, type] : offsets) {
-          j["overrides"].push_back({
-              {"func", funcAddr},
-              {"offset", offset},
-              {"type", type->toString()}
-          });
-      }
+  for (const auto &[funcAddr, offsets] : userVarTypes_) {
+    for (const auto &[offset, type] : offsets) {
+      j["overrides"].push_back(
+          {{"func", funcAddr}, {"offset", offset}, {"type", type->toString()}});
+    }
   }
-  
+
   std::ofstream o(path);
   o << std::setw(4) << j << std::endl;
   return true;
@@ -713,62 +1239,60 @@ bool DecompilerContext::SaveProject(const std::string &path) {
 
 bool DecompilerContext::LoadProject(const std::string &path) {
   std::ifstream i(path);
-  if (!i.is_open()) return false;
-  
+  if (!i.is_open())
+    return false;
+
   json j;
   i >> j;
-  
+
   // Symbols
   if (j.contains("symbols") && symbolDatabase_) {
-      symbolDatabase_->clear(); // Maybe clear existing? 
-      for (const auto& sym : j["symbols"]) {
-          symbolDatabase_->addSymbol(
-              sym["address"],
-              sym["name"], 
-              (Analysis::SymbolType)sym["type"], 
-              (Analysis::SymbolSource)sym["source"]
-          );
-      }
+    symbolDatabase_->clear(); // Maybe clear existing?
+    for (const auto &sym : j["symbols"]) {
+      symbolDatabase_->addSymbol(sym["address"], sym["name"],
+                                 (Analysis::SymbolType)sym["type"],
+                                 (Analysis::SymbolSource)sym["source"]);
+    }
   }
-  
+
   // Structs
   if (j.contains("structs")) {
-      for (const auto& sJson : j["structs"]) {
-          std::string name = sJson["name"];
-          // Use createStruct which registers it
-          auto s = typeManager_->createStruct(name);
-          for (const auto& mJson : sJson["members"]) {
-              std::string typeName = mJson["type"];
-              auto type = typeManager_->getType(typeName);
-              if (!type) {
-                  // Basic primitive fallback or implicit creation
-                   if (typeName.back() == '*') {
-                       // Assume pointer to something?
-                       // For now default to int
-                       type = typeManager_->getType("int");
-                   } else {
-                       type = typeManager_->getType("int");
-                   }
-              }
-              if (type) {
-                  s->addMember(mJson["name"], type, mJson["offset"]);
-              }
+    for (const auto &sJson : j["structs"]) {
+      std::string name = sJson["name"];
+      // Use createStruct which registers it
+      auto s = typeManager_->createStruct(name);
+      for (const auto &mJson : sJson["members"]) {
+        std::string typeName = mJson["type"];
+        auto type = typeManager_->getType(typeName);
+        if (!type) {
+          // Basic primitive fallback or implicit creation
+          if (typeName.back() == '*') {
+            // Assume pointer to something?
+            // For now default to int
+            type = typeManager_->getType("int");
+          } else {
+            type = typeManager_->getType("int");
           }
+        }
+        if (type) {
+          s->addMember(mJson["name"], type, mJson["offset"]);
+        }
       }
+    }
   }
-  
+
   // Overrides
   if (j.contains("overrides")) {
-      for (const auto& ov : j["overrides"]) {
-          uint64_t funcAddr = ov["func"];
-          int offset = ov["offset"];
-          std::string typeName = ov["type"];
-          
-          auto type = typeManager_->getType(typeName);
-          if (type) {
-              SetUserVarType(funcAddr, offset, type);
-          }
+    for (const auto &ov : j["overrides"]) {
+      uint64_t funcAddr = ov["func"];
+      int offset = ov["offset"];
+      std::string typeName = ov["type"];
+
+      auto type = typeManager_->getType(typeName);
+      if (type) {
+        SetUserVarType(funcAddr, offset, type);
       }
+    }
   }
 
   return true;

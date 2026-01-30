@@ -5,6 +5,7 @@
 #include <map>
 #include <memory>
 #include <set>
+#include <tuple>
 
 namespace ShadPKG::Decompiler::Lifter {
 
@@ -35,9 +36,22 @@ public:
   void applyToAST(std::shared_ptr<AST::FunctionAST> ast);
 
   // Inferred Signature
-  const std::vector<AST::LocalVariable>& getDetectedParams() const { return detectedParams_; }
+  const std::vector<AST::LocalVariable> &getDetectedParams() const {
+    return detectedParams_;
+  }
   std::string getInferredReturnType() const { return inferredReturnType_; }
   std::string getParamForRegister(uint64_t regId) const;
+
+  // ═══════════════════════════════════════════════════════════════════════
+  //  SSA Register Tracking - converts registers to temp variables
+  // ═══════════════════════════════════════════════════════════════════════
+
+  // Get temp name for a register at a given instruction address
+  // Returns empty if not tracked (use register name as fallback)
+  std::string getTempForRegister(uint64_t regId, uint64_t instrAddr) const;
+
+  // Track a new definition of a register at an instruction address
+  void trackRegisterDef(uint64_t regId, uint64_t instrAddr);
 
   // Resolves a memory operand to a variable name if possible
   // Returns empty string if not a known variable
@@ -58,6 +72,19 @@ private:
   std::map<uint64_t, int> registerParams_; // RegID -> ParamIndex
   std::set<uint64_t> assignedRegisters_;   // To detect use-before-def
   std::map<uint64_t, std::string> regToParam_;
+
+  // ═══════════════════════════════════════════════════════════════════════
+  //  SSA Tracking: {register, def_addr} -> temp_N
+  // ═══════════════════════════════════════════════════════════════════════
+  struct RegDef {
+    uint64_t regId;
+    uint64_t defAddr;
+    bool operator<(const RegDef &o) const {
+      return std::tie(regId, defAddr) < std::tie(o.regId, o.defAddr);
+    }
+  };
+  std::map<RegDef, std::string> ssaTemps_;
+  int nextTempId_ = 0;
 
   void scanInstruction(const IR::Instruction &instr);
   void createVariable(int offset, int size, bool isParam);

@@ -202,7 +202,12 @@ static void DrawMainFrame() {
     ImGui::PopStyleVar();
   }
 
-  // ...
+  // ┌─────────────────────────────────────────────────────────────────────────┐
+  // │  Console Log at bottom of content area                                  │
+  // └─────────────────────────────────────────────────────────────────────────┘
+  if (consoleHeight > 1.0f) {
+    g_ConsoleLog.Draw(consoleHeight - 30.0f);
+  }
 
   ImGui::EndChild(); // Close ##content_area
 
