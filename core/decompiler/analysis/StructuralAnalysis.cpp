@@ -1,5 +1,4 @@
 #include "StructuralAnalysis.h"
-#include "LoopCorrector.h"
 #include <iostream>
 
 namespace ShadPKG::Decompiler::Analysis {
@@ -165,12 +164,6 @@ StructuralAnalysis::matchLoop(uint64_t header, uint64_t stopBlock) {
         body->addStatement(bodyStmt);
     }
     result = std::make_shared<AST::DoWhileStatement>(body, condition);
-    
-    // Apply loop corrections to detect and fix infinite loops
-    if (auto corrected = LoopCorrector::correctDoWhileLoop(
-            std::dynamic_pointer_cast<AST::DoWhileStatement>(result), latchBB)) {
-      result = corrected;
-    }
   } else {
     if (headerBB->successors.size() == 2) {
       uint64_t trueSucc = headerBB->successors[0];
@@ -183,12 +176,6 @@ StructuralAnalysis::matchLoop(uint64_t header, uint64_t stopBlock) {
       auto condition = extractCondition(headerBB, inverted);
       auto bodyStmt = structureRegion(trueSucc, header);
       result = std::make_shared<AST::WhileStatement>(condition, bodyStmt);
-      
-      // Apply loop corrections to detect and fix infinite loops
-      if (auto corrected = LoopCorrector::correctWhileLoop(
-              std::dynamic_pointer_cast<AST::WhileStatement>(result), headerBB)) {
-        result = corrected;
-      }
     }
   }
 
@@ -337,10 +324,13 @@ StructuralAnalysis::structureBlock(const std::shared_ptr<IR::BasicBlock> &bb) {
               std::dynamic_pointer_cast<AST::ExpressionStatement>(astStmt)) {
         if (auto call = std::dynamic_pointer_cast<AST::CallExpr>(
                 exprStmt->expression)) {
+          // Skip __asm__ volatile calls - they don't take register arguments
+          if (call->functionName.find("__asm__") != std::string::npos) {
+            continue;
+          }
+          // System V AMD64 ABI: rdi, rsi, rdx, rcx, r8, r9 for integer args
           static const std::vector<std::string> paramRegs = {
-              "rdi",  "rsi",  "rdx",  "rcx",  "r8",   "r9",   "edi",
-              "esi",  "edx",  "ecx",  "r8d",  "r9d",  "xmm0", "xmm1",
-              "xmm2", "xmm3", "xmm4", "xmm5", "xmm6", "xmm7"};
+              "reg_rdi", "reg_rsi", "reg_rdx", "reg_rcx", "reg_r8", "reg_r9"};
           for (const auto &rName : paramRegs) {
             if (regValues.count(rName)) {
               call->arguments.push_back(regValues[rName]);
@@ -514,18 +504,19 @@ StructuralAnalysis::liftInstruction(const IR::Instruction &instr) {
         if (symbols_) {
           auto symInfo = symbols_->getSymbol(op.value);
           // Only resolve if it's explicitly a GlobalVariable.
-          // Ignore Labels so we fall through to MemoryExpr and let CppEmitter
-          // infer type/name (g_Type_Addr).
           if (symInfo &&
               symInfo->type == Analysis::SymbolType::GlobalVariable) {
             return std::make_shared<AST::VariableExpr>(symInfo->name);
           }
         }
-        // Use proper MemoryExpr so CppEmitter can handle it with type inference
-        // Fallback for RIP: likely a constant or data access
-        auto addr =
-            std::make_shared<AST::ConstantExpr>((int64_t)op.value, true);
-        auto castExpr = std::make_shared<AST::CastExpr>(addr, "int64_t*");
+        // Generate access via global memory buffer: *((int64_t*)&g_ps4_memory[addr])
+        std::stringstream hexAddr;
+        hexAddr << std::hex << op.value;
+        auto memAccess = std::make_shared<AST::VariableExpr>(
+            "g_ps4_memory[0x" + hexAddr.str() + "]");
+        auto addrOf = std::make_shared<AST::UnaryExpr>(
+            AST::UnaryExpr::Op::AddressOf, memAccess);
+        auto castExpr = std::make_shared<AST::CastExpr>(addrOf, "int64_t*");
         return std::make_shared<AST::UnaryExpr>(AST::UnaryExpr::Op::Deref,
                                                 castExpr);
       }
@@ -554,9 +545,14 @@ StructuralAnalysis::liftInstruction(const IR::Instruction &instr) {
                                                 castExpr);
       }
       if (op.value != 0) {
-        auto addr =
-            std::make_shared<AST::ConstantExpr>((int64_t)op.value, true);
-        auto castExpr = std::make_shared<AST::CastExpr>(addr, "int64_t*");
+        // Generate access via global memory buffer: *((int64_t*)&g_ps4_memory[addr])
+        std::stringstream hexAddr;
+        hexAddr << std::hex << op.value;
+        auto memAccess = std::make_shared<AST::VariableExpr>(
+            "g_ps4_memory[0x" + hexAddr.str() + "]");
+        auto addrOf = std::make_shared<AST::UnaryExpr>(
+            AST::UnaryExpr::Op::AddressOf, memAccess);
+        auto castExpr = std::make_shared<AST::CastExpr>(addrOf, "int64_t*");
         return std::make_shared<AST::UnaryExpr>(AST::UnaryExpr::Op::Deref,
                                                 castExpr);
       }

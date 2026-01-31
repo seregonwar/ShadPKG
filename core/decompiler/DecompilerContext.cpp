@@ -659,8 +659,54 @@ void DecompilerContext::ExportProject(const std::string &outPath) {
   std::filesystem::path root(outPath);
   std::filesystem::create_directories(root / "include");
   std::filesystem::create_directories(root / "src");
+  std::filesystem::create_directories(root / "data");
 
   LOG_INFO(Common, "Starting full project analysis and export...");
+  
+  // ┌─────────────────────────────────────────────────────────────────────────┐
+  // │  Export binary data segments for runtime loading                        │
+  // └─────────────────────────────────────────────────────────────────────────┘
+  {
+    // Find minimum VA to use as base
+    uint64_t minVA = baseAddress_;
+    for (const auto &seg : segments_) {
+      if (seg.virtualAddress < minVA) minVA = seg.virtualAddress;
+    }
+    
+    // Calculate total size needed
+    uint64_t maxEnd = 0;
+    for (const auto &seg : segments_) {
+      uint64_t end = (seg.virtualAddress - minVA) + seg.size;
+      if (end > maxEnd) maxEnd = end;
+    }
+    
+    if (maxEnd > 0 && maxEnd < 64 * 1024 * 1024) { // Max 64MB
+      std::vector<uint8_t> memoryImage(maxEnd, 0);
+      
+      for (const auto &seg : segments_) {
+        uint64_t destOffset = seg.virtualAddress - minVA;
+        if (seg.fileOffset + seg.size <= rawData_.size()) {
+          std::memcpy(memoryImage.data() + destOffset, 
+                      rawData_.data() + seg.fileOffset, seg.size);
+          LOG_INFO(Common, "Exported segment: VA=0x{:X} -> offset 0x{:X}, size=0x{:X}",
+                   seg.virtualAddress, destOffset, seg.size);
+        }
+      }
+      
+      std::ofstream memFile(root / "data" / "memory.bin", std::ios::binary);
+      memFile.write(reinterpret_cast<const char*>(memoryImage.data()), memoryImage.size());
+      memFile.close();
+      
+      // Write metadata
+      std::ofstream metaFile(root / "data" / "memory.meta");
+      metaFile << "base_address=0x" << std::hex << minVA << "\n";
+      metaFile << "size=0x" << maxEnd << "\n";
+      metaFile << "segments=" << segments_.size() << "\n";
+      metaFile.close();
+      
+      LOG_INFO(Common, "Exported memory image: {} bytes (base=0x{:X})", maxEnd, minVA);
+    }
+  }
 
   auto symbols = std::make_shared<Analysis::SymbolAnalysis>(
       rawData_, baseAddress_, symbolDatabase_);
@@ -815,24 +861,41 @@ void DecompilerContext::ExportProject(const std::string &outPath) {
     hFuncs << "#pragma once\n";
     hFuncs << "#include \"types.h\"\n";
     hFuncs << "#include <cstdint>\n\n";
+    
+    // Runtime dispatch functions for vtable/indirect calls
+    hFuncs << "// Runtime dispatch functions for vtable/indirect calls\n";
+    hFuncs << "extern \"C\" {\n";
+    hFuncs << "    int64_t ps4_vtable_dispatch(void* obj, uint64_t offset,\n";
+    hFuncs << "                                 uint64_t a1, uint64_t a2, uint64_t a3,\n";
+    hFuncs << "                                 uint64_t a4, uint64_t a5, uint64_t a6);\n";
+    hFuncs << "    \n";
+    hFuncs << "    int64_t ps4_indirect_dispatch(void* fnPtr,\n";
+    hFuncs << "                                   uint64_t a1, uint64_t a2, uint64_t a3,\n";
+    hFuncs << "                                   uint64_t a4, uint64_t a5, uint64_t a6);\n";
+    hFuncs << "}\n\n";
 
     for (const auto &func : functions_) {
-      if (nameToAst.count(func->name)) {
-        auto &ast = nameToAst[func->name];
-        hFuncs << ast->returnType << " " << ast->name << "(";
-        for (size_t j = 0; j < ast->parameters.size(); ++j) {
-          if (j > 0)
-            hFuncs << ", ";
-          hFuncs << ast->parameters[j].getTypeName() << " "
-                 << ast->parameters[j].name;
+      // Check if this is a PLT/system function (negative address or special prefix)
+      bool isPltFunc = (func->address > 0xFFFFFFFF00000000ULL) || 
+                       (func->name.find("sub_fffff") != std::string::npos) ||
+                       (func->name.find("sub_cb") != std::string::npos) ||
+                       (func->name.find("sub_ca") != std::string::npos) ||
+                       (func->name.find("sub_c9") != std::string::npos);
+      
+      // Always use generic 6-parameter signature for all functions
+      // This ensures declarations match all possible call sites
+      {
+        std::string retType = "int64_t";
+        if (nameToAst.count(func->name)) {
+          auto &ast = nameToAst[func->name];
+          if (ast->returnType != "void") {
+            retType = ast->returnType;
+          }
         }
+        hFuncs << retType << " " << func->name << "(";
+        hFuncs << "int64_t a1 = 0, int64_t a2 = 0, int64_t a3 = 0, "
+                  "int64_t a4 = 0, int64_t a5 = 0, int64_t a6 = 0";
         hFuncs << ");\n";
-      } else {
-        // Fallback for skipped functions: provide generic prototype to allow
-        // callers to compile
-        hFuncs << "int64_t " << func->name
-               << "(int64_t a1 = 0, int64_t a2 = 0, int64_t a3 = 0, "
-                  "int64_t a4 = 0, int64_t a5 = 0, int64_t a6 = 0);\n";
       }
     }
   }

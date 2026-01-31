@@ -23,20 +23,15 @@ CppEmitter::generate(const std::shared_ptr<AST::FunctionAST> &func) {
     }
   }
 
-  // Signature
-  emit(func->returnType, TokenType::Type);
+  // Signature - always use int64_t return type to match declarations
+  std::string returnType = (func->returnType == "void") ? "int64_t" : func->returnType;
+  emit(returnType, TokenType::Type);
   emit(" ");
   emit(func->name, TokenType::Function, func->address);
   emit("(");
 
-  for (size_t i = 0; i < func->parameters.size(); ++i) {
-    if (i > 0)
-      emit(", ");
-    const auto &p = func->parameters[i];
-    emit(p.getTypeName(), TokenType::Type);
-    emit(" ");
-    emit(p.name, TokenType::Identifier);
-  }
+  // Always use 6 parameters to match declarations
+  emit("int64_t a1, int64_t a2, int64_t a3, int64_t a4, int64_t a5, int64_t a6");
 
   emit(") {\n");
 
@@ -59,11 +54,27 @@ CppEmitter::generate(const std::shared_ptr<AST::FunctionAST> &func) {
     emit(typeName, TokenType::Type);
     emit(" ");
     emit(regName, TokenType::Identifier);
-    emit("; // register temp\n", TokenType::Comment);
+    // Initialize registers to 0 to prevent crashes from uninitialized access
+    if (typeName == "double") {
+      emit(" = 0.0; // register temp\n", TokenType::Comment);
+    } else {
+      emit(" = 0; // register temp\n", TokenType::Comment);
+    }
   }
 
-  if (!usedRegs_.empty())
+  if (!usedRegs_.empty()) {
     emit("\n");
+    // Initialize argument registers from function parameters (System V AMD64 ABI)
+    indent();
+    emit("// Initialize registers from arguments\n");
+    if (usedRegs_.count("reg_rdi")) { indent(); emit("reg_rdi = a1;\n"); }
+    if (usedRegs_.count("reg_rsi")) { indent(); emit("reg_rsi = a2;\n"); }
+    if (usedRegs_.count("reg_rdx")) { indent(); emit("reg_rdx = a3;\n"); }
+    if (usedRegs_.count("reg_rcx")) { indent(); emit("reg_rcx = a4;\n"); }
+    if (usedRegs_.count("reg_r8"))  { indent(); emit("reg_r8 = a5;\n"); }
+    if (usedRegs_.count("reg_r9"))  { indent(); emit("reg_r9 = a6;\n"); }
+    emit("\n");
+  }
 
   // Local stack variable declarations
   for (const auto &var : func->locals) {

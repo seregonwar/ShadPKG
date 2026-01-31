@@ -8,6 +8,7 @@
  */
 
 #include "ps4_stubs.h"
+#include "sdl_backend.h"
 #include <chrono>
 #include <cstring>
 #include <iostream>
@@ -118,17 +119,30 @@ s32 scePadRead(s32 handle, OrbisPadData* pData, s32 num) {
     
     u64 timestamp = GetCurrentTimestamp();
     
+    // Get real input from SDL if available
+    PS4Emu::SDL::PadState sdlPad = {};
+    if (PS4Emu::SDL::IsInitialized()) {
+        sdlPad = PS4Emu::SDL::GetPadState();
+    } else {
+        // Default neutral state
+        sdlPad.connected = true;
+        sdlPad.leftStickX = 128;
+        sdlPad.leftStickY = 128;
+        sdlPad.rightStickX = 128;
+        sdlPad.rightStickY = 128;
+    }
+    
     for (s32 i = 0; i < num; i++) {
         std::memset(&pData[i], 0, sizeof(OrbisPadData));
         
-        // Neutral controller state (sticks centered at 128)
-        pData[i].buttons = 0;
-        pData[i].leftStick.x = 128;
-        pData[i].leftStick.y = 128;
-        pData[i].rightStick.x = 128;
-        pData[i].rightStick.y = 128;
-        pData[i].analogButtons.l2 = 0;
-        pData[i].analogButtons.r2 = 0;
+        // Use SDL input
+        pData[i].buttons = sdlPad.buttons;
+        pData[i].leftStick.x = sdlPad.leftStickX;
+        pData[i].leftStick.y = sdlPad.leftStickY;
+        pData[i].rightStick.x = sdlPad.rightStickX;
+        pData[i].rightStick.y = sdlPad.rightStickY;
+        pData[i].analogButtons.l2 = sdlPad.l2;
+        pData[i].analogButtons.r2 = sdlPad.r2;
         
         // Orientation (identity quaternion)
         pData[i].orientation.x = 0.0f;
@@ -150,7 +164,7 @@ s32 scePadRead(s32 handle, OrbisPadData* pData, s32 num) {
         pData[i].touchData.touchNum = 0;
         
         // Connection status
-        pData[i].connected = true;
+        pData[i].connected = sdlPad.connected;
         pData[i].connectedCount = 1;
         pData[i].timestamp = timestamp;
         pData[i].deviceUniqueDataLen = 0;
@@ -304,12 +318,25 @@ s32 sceVideoOutOpen(OrbisUserServiceUserId userId, s32 busType, s32 index, const
         return -2144796671;
     }
     
+    // Initialize SDL window
+    if (!PS4Emu::SDL::IsInitialized()) {
+        if (!PS4Emu::SDL::Initialize("PS4 Game", 1280, 720)) {
+            std::cerr << "[VideoOut] Failed to initialize SDL window" << std::endl;
+        }
+    }
+    
     g_video_initialized = true;
     return g_video_next_handle++;
 }
 
 s32 sceVideoOutClose(s32 handle) {
     LOG_DEBUG("sceVideoOutClose(handle=" << handle << ")");
+    
+    // Shutdown SDL when video is closed
+    if (PS4Emu::SDL::IsInitialized()) {
+        PS4Emu::SDL::Shutdown();
+    }
+    
     return ORBIS_OK;
 }
 
@@ -353,6 +380,23 @@ s32 sceVideoOutSetFlipRate(s32 handle, s32 rate) {
 s32 sceVideoOutSubmitFlip(s32 handle, s32 bufferIndex, s32 flipMode, s64 flipArg) {
     // This is called every frame - increment flip count
     g_flip_count++;
+    
+    // If SDL is initialized, present the frame
+    if (PS4Emu::SDL::IsInitialized()) {
+        // Poll events (input)
+        PS4Emu::SDL::PollEvents();
+        
+        // Clear screen with a color based on frame count (visual feedback)
+        uint64_t frame = g_flip_count.load();
+        uint8_t r = static_cast<uint8_t>((frame * 2) % 64 + 32);  // Dark blue-ish
+        uint8_t g = static_cast<uint8_t>((frame) % 64 + 32);
+        uint8_t b = static_cast<uint8_t>(128 + (frame % 64));     // Blue dominant
+        PS4Emu::SDL::ClearScreen(r, g, b);
+        
+        // Present the frame (with VSync)
+        PS4Emu::SDL::Present();
+    }
+    
     return ORBIS_OK;
 }
 
@@ -444,6 +488,19 @@ s32 sceVideoOutAdjustColor(s32 handle, const SceVideoOutColorSettings* settings)
 
 s32 sceGnmSubmitCommandBuffers(u32 count, void** dcbGpuAddrs, u32* dcbSizesInBytes,
                                void** ccbGpuAddrs, u32* ccbSizesInBytes) {
+    static u64 gnm_call_count = 0;
+    gnm_call_count++;
+    
+    // Log every 60 calls (roughly once per second at 60fps)
+    if (gnm_call_count % 60 == 1) {
+        std::cout << "[GNM] SubmitCommandBuffers #" << gnm_call_count 
+                  << " count=" << count;
+        if (dcbSizesInBytes && count > 0) {
+            std::cout << " dcbSize=" << dcbSizesInBytes[0];
+        }
+        std::cout << std::endl;
+    }
+    
     return ORBIS_OK;
 }
 

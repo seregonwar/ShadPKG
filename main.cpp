@@ -412,6 +412,7 @@ int main(int argc, char *argv[]) {
     // Command to extract PKG
     if (command == "extract") {
       std::cerr << "DEBUG: Entered extract block" << std::endl;
+      std::cerr.flush();
       // Flexible parsing: supports both positional (legacy) and options
       std::filesystem::path pkg_path;
       std::filesystem::path out_dir = "."; // default
@@ -496,12 +497,18 @@ int main(int argc, char *argv[]) {
         }
       }
 
+      std::cerr << "DEBUG: pkg_path=" << pkg_path << std::endl;
+      std::cerr.flush();
+      
       if (pkg_path.empty()) {
         std::cerr << "Error: PKG file must be specified" << std::endl;
         showUsage(argv[0]);
         return 1;
       }
 
+      std::cerr << "DEBUG: About to check RIF" << std::endl;
+      std::cerr.flush();
+      
       if (use_rif) {
         std::cout << "Using RIF file: " << rif_path << std::endl;
         if (!RIFGenerator::ValidateRIF(rif_path)) {
@@ -510,18 +517,26 @@ int main(int argc, char *argv[]) {
         }
       }
 
+      std::cerr << "DEBUG: About to open PKG" << std::endl;
+      std::cerr << "DEBUG: export_project=" << export_project << " export_dir=" << export_dir.string() << std::endl;
+      std::cerr.flush();
+      
       // Continue with PKG extraction
-      LOG_INFO(Common, "PKG File: {}", pkg_path.string());
-      LOG_INFO(Common, "Output Folder: {}", out_dir.string());
-      if (use_rif) {
-        LOG_INFO(Common, "RIF File: {}", rif_path.string());
-      }
+      std::cerr << "DEBUG: PKG File: " << pkg_path.string() << std::endl;
+      std::cerr << "DEBUG: Output Folder: " << out_dir.string() << std::endl;
+      std::cerr.flush();
+      
+      std::cerr << "DEBUG: Checking if PKG exists..." << std::endl;
+      std::cerr.flush();
 
       // Verify that the PKG file exists
       if (!std::filesystem::exists(pkg_path)) {
-        LOG_ERROR(Lib_Kernel, "PKG file does not exist: {}", pkg_path.string());
+        std::cerr << "Error: PKG file does not exist: " << pkg_path.string() << std::endl;
         return 1;
       }
+      
+      std::cerr << "DEBUG: PKG exists, opening..." << std::endl;
+      std::cerr.flush();
 
       // Create the output folder if it doesn't exist
       if (!std::filesystem::exists(out_dir)) {

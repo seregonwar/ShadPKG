@@ -21,12 +21,12 @@ find_package(ZLIB REQUIRED)
 find_package(CryptoPP REQUIRED)
 find_package(fmt REQUIRED)
 find_package(nlohmann_json REQUIRED)
+find_package(capstone REQUIRED)
 
 if(BUILD_GUI)
     find_package(imgui REQUIRED)
     find_package(glfw3 REQUIRED)
     find_package(OpenGL REQUIRED)
-    find_package(capstone REQUIRED)
 endif()
 
 # ╔══════════════════════════════════════════════════════════════════════════╗
@@ -40,11 +40,8 @@ set(CORE_SOURCES
     core/file_format/pkg_type.cpp
     core/crypto/crypto.cpp
     core/decompiler/DecompilerContext.cpp
-    core/decompiler/AutoCorrector.cpp
-    core/decompiler/MemoryAccessCorrector.cpp
     core/decompiler/analysis/DominatorAnalysis.cpp
     core/decompiler/analysis/StructuralAnalysis.cpp
-    core/decompiler/analysis/LoopCorrector.cpp
     core/decompiler/analysis/SymbolAnalysis.cpp
     core/decompiler/analysis/SymbolDatabase.cpp
     core/decompiler/analysis/DataFlowAnalysis.cpp
