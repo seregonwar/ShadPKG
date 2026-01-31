@@ -7,9 +7,9 @@
  * ╚═══════════════════════════════════════════════════════════════════════════╝
  */
 
-#include "../include/runtime.h"
-#include "../include/ps4_memory.h"
-#include "../include/ps4_tls.h"
+#include "runtime.h"
+#include "ps4_memory.h"
+#include "ps4_tls.h"
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -129,8 +129,10 @@ void runtime_shutdown() {
  * ┌─────────────────────────────────────────────────────────────────┐
  * │                     PS4 KERNEL SYSCALLS                         │
  * └─────────────────────────────────────────────────────────────────┘
- * Additional stubs not in ps4_kernel.cpp.
- * Main implementations are now in ps4_kernel.cpp.
+ * Note: Most syscalls are now implemented in:
+ *   - ps4_kernel.cpp (file, memory, time syscalls)
+ *   - ps4_pthread.cpp (threading primitives)
+ *   - ps4_stubs.cpp (PAD, Audio, Video, User Service, etc.)
  */
 
 extern "C" {
@@ -141,22 +143,8 @@ void *sceKernelMmap(void *addr, size_t len, int prot, int flags, int fd,
                     off_t offset) {
   std::cout << "[SYSCALL] sceKernelMmap(len=" << len
             << ") -> using PS4Emu::TranslateAddress" << std::endl;
-  // For now, return memory from our global pool
   return PS4Emu::TranslateAddress(reinterpret_cast<uint64_t>(addr));
 }
-
-// ─────────────────────── THREADING ───────────────────────
-
-int scePthreadCreate(void *thread, void *attr, void *(*start_routine)(void *),
-                     void *arg) {
-  std::cout << "[SYSCALL] scePthreadCreate (STUB - not creating thread)"
-            << std::endl;
-  return 0;
-}
-
-int scePthreadMutexLock(void *mutex) { return 0; }
-
-int scePthreadMutexUnlock(void *mutex) { return 0; }
 
 // ─────────────────────── MODULES ───────────────────────
 
@@ -167,12 +155,6 @@ int sceKernelLoadStartModule(const char *path, size_t args, const void *argp,
   if (result)
     *result = 0;
   return 1;
-}
-
-int sceSysmoduleLoadModule(int id) {
-  std::cout << "[SYSCALL] sceSysmoduleLoadModule(id=" << id << ") -> OK"
-            << std::endl;
-  return 0;
 }
 
 } // extern "C"

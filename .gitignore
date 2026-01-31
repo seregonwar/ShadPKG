@@ -1,4 +1,3 @@
-/build
 *.vcxproj
 /gift
 RIF_Documentation.md
@@ -36,3 +35,5 @@ export_log.txt
 export_log_full.txt
 export_log_full_clean.txt
 /test_out
+/build
+/external/shadPS4

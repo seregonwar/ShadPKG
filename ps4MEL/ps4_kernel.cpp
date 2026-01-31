@@ -6,9 +6,9 @@
  * ╚═══════════════════════════════════════════════════════════════════════════╝
  */
 
-#include "../include/ps4_kernel.h"
-#include "../include/ps4_memory.h"
-#include "../include/ps4_tls.h"
+#include "ps4_kernel.h"
+#include "ps4_memory.h"
+#include "ps4_tls.h"
 #include <chrono>
 #include <cstring>
 #include <ctime>

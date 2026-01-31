@@ -6,7 +6,7 @@
  * ╚═══════════════════════════════════════════════════════════════════════════╝
  */
 
-#include "../include/ps4_memory.h"
+#include "ps4_memory.h"
 #include <cmath>
 #include <cstring>
 #include <iostream>
@@ -169,6 +169,31 @@ bool InitializeMemory() {
       {0x997438, "Global State C"},
       {0x99743a, "Global State D"},
       {0x997430, "Global State E"},
+      // Additional managers discovered during runtime
+      {0x9bb2a0, "Object Pool B"},
+      {0x9bb2a8, "Object Pool C"},
+      {0x99a9f0, "Scene Manager B"},
+      {0x99a9f8, "Scene Manager C"},
+      {0x9992b8, "Render Context B"},
+      {0x9992c0, "Render Context C"},
+      {0x96d068, "Audio Manager B"},
+      {0x96d070, "Audio Manager C"},
+      {0x959908, "Input Manager B"},
+      {0x959910, "Input Manager C"},
+      {0x959918, "Input State"},
+      {0x9bc3d8, "Memory Allocator B"},
+      {0x9bc3e0, "Memory Allocator C"},
+      {0x9d00d8, "Config Value B"},
+      {0x9d00e0, "Config Value C"},
+      // Frame timing and loop control
+      {0x9d9e30, "Frame Counter"},
+      {0x9d9e38, "Delta Time Ptr"},
+      {0x9d9e40, "Last Frame Time"},
+      // Additional critical pointers from crash analysis
+      {0x961858, "Module Table C"},
+      {0x961860, "Module Table D"},
+      {0x995e80, "Engine Pointer C"},
+      {0x995e88, "Engine Pointer D"},
   };
 
   std::cout << "[PS4Emu] Initializing "
@@ -243,6 +268,22 @@ bool InitializeMemory() {
   std::cout << "[PS4Emu] Trig tables pre-populated (" << TRIG_TABLE_ENTRIES
             << " entries)" << std::endl;
 
+  // ┌─────────────────────────────────────────────────────────────────────────┐
+  // │  INITIALIZE FRAME COUNTER FOR DEBUGGING                                 │
+  // │  This allows us to track if the main loop is actually running           │
+  // └─────────────────────────────────────────────────────────────────────────┘
+  
+  // Frame counter at a known location for debugging
+  *reinterpret_cast<uint64_t *>(g_ps4GlobalMemory + 0x9d9e30) = 0;
+  
+  // Delta time initialized to 16.67ms (60 FPS)
+  *reinterpret_cast<float *>(g_ps4GlobalMemory + 0x9d9e38) = 0.01667f;
+  
+  // Last frame time
+  *reinterpret_cast<uint64_t *>(g_ps4GlobalMemory + 0x9d9e40) = 0;
+
+  std::cout << "[PS4Emu] Frame counter initialized at 0x9d9e30" << std::endl;
+
   return true;
 }
 
@@ -293,6 +334,33 @@ void *TranslateAddress(uint64_t ps4_addr) {
 
   // Translate: PS4 address -> our allocated block
   return g_ps4GlobalMemory + ps4_addr;
+}
+
+// ┌─────────────────────────────────────────────────────────────────────────┐
+// │  DEBUG: Get frame counter to check if main loop is running              │
+// └─────────────────────────────────────────────────────────────────────────┘
+uint64_t GetFrameCounter() {
+  if (!g_initialized || !g_ps4GlobalMemory) {
+    return 0;
+  }
+  return *reinterpret_cast<uint64_t *>(g_ps4GlobalMemory + 0x9d9e30);
+}
+
+void IncrementFrameCounter() {
+  if (!g_initialized || !g_ps4GlobalMemory) {
+    return;
+  }
+  uint64_t *counter = reinterpret_cast<uint64_t *>(g_ps4GlobalMemory + 0x9d9e30);
+  (*counter)++;
+  
+  // Log every 60 frames (approximately 1 second at 60 FPS)
+  if (*counter % 60 == 0) {
+    std::cout << "[PS4Emu] Frame: " << *counter << std::endl;
+  }
+}
+
+void *GetGlobalMemoryBase() {
+  return g_ps4GlobalMemory;
 }
 
 } // namespace PS4Emu

@@ -51,6 +51,11 @@ void ShutdownMemory();
 // Returns nullptr if address is out of range
 void *TranslateAddress(uint64_t ps4_addr);
 
+// Debug: Frame counter functions to verify main loop execution
+uint64_t GetFrameCounter();
+void IncrementFrameCounter();
+void *GetGlobalMemoryBase();
+
 /*
  * ┌─────────────────────────────────────────────────────────────────┐
  * │                       ACCESS MACROS                             │

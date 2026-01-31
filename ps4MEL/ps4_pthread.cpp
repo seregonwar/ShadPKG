@@ -6,9 +6,9 @@
  * ╚═══════════════════════════════════════════════════════════════════════════╝
  */
 
-#include "../include/ps4_pthread.h"
-#include "../include/ps4_kernel.h"
-#include "../include/ps4_tls.h"
+#include "ps4_pthread.h"
+#include "ps4_kernel.h"
+#include "ps4_tls.h"
 #include <condition_variable>
 #include <cstring>
 #include <iostream>

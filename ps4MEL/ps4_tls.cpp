@@ -6,7 +6,7 @@
  * ╚═══════════════════════════════════════════════════════════════════════════╝
  */
 
-#include "../include/ps4_tls.h"
+#include "ps4_tls.h"
 #include <cstring>
 #include <iostream>
 #include <mutex>
