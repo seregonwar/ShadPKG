@@ -1,5 +1,6 @@
 #include "DataFlowAnalysis.h"
 #include <iostream>
+#include <functional>
 
 namespace ShadPKG::Decompiler::Analysis {
 
@@ -15,21 +16,53 @@ void DataFlowAnalysis::analyze() {
 
   // Pass 2: Apply inferred types to locals
   applyTypes();
+  
+  // Pass 3: Track variable usage for dead code elimination
+  trackVariableUsage();
+  
+  // Pass 4: Eliminate dead code (assignments to unused variables)
+  eliminateDeadCode();
 }
 
 void DataFlowAnalysis::inferType(const std::string &varName,
                                  AST::Expression::Type type) {
-  // Determine priority: Pointer > Int64 > Int32 > Int8
-  // Simple overwrite for now
+  // Type priority hierarchy:
+  // Pointer > Int64 > Int32 > Int16 > Int8 > Unknown
+  // Once a type is inferred, only upgrade to higher priority types
+  
   if (inferredTypes_.find(varName) == inferredTypes_.end()) {
     inferredTypes_[varName] = type;
-  } else {
-    // Upgrade type logic
-    auto current = inferredTypes_[varName];
-    if (current == AST::Expression::Type::Unknown)
-      inferredTypes_[varName] = type;
-    // else if (type == AST::Expression::Type::Pointer && current !=
-    // AST::Expression::Type::Pointer) ...
+    return;
+  }
+  
+  auto current = inferredTypes_[varName];
+  
+  // If current is already Pointer, don't downgrade
+  if (current == AST::Expression::Type::Pointer) {
+    return;
+  }
+  
+  // Upgrade to Pointer if needed
+  if (type == AST::Expression::Type::Pointer) {
+    inferredTypes_[varName] = type;
+    return;
+  }
+  
+  // For integer types, upgrade to larger sizes
+  if (current == AST::Expression::Type::Unknown) {
+    inferredTypes_[varName] = type;
+  } else if (type == AST::Expression::Type::Int64 && 
+             (current == AST::Expression::Type::Int32 ||
+              current == AST::Expression::Type::Int16 ||
+              current == AST::Expression::Type::Int8)) {
+    inferredTypes_[varName] = type;
+  } else if (type == AST::Expression::Type::Int32 && 
+             (current == AST::Expression::Type::Int16 ||
+              current == AST::Expression::Type::Int8)) {
+    inferredTypes_[varName] = type;
+  } else if (type == AST::Expression::Type::Int16 && 
+             current == AST::Expression::Type::Int8) {
+    inferredTypes_[varName] = type;
   }
 }
 
@@ -141,6 +174,140 @@ void DataFlowAnalysis::visit(AST::SwitchStmt *node) {
   for (auto &cse : node->cases) {
     cse->accept(this);
   }
+}
+
+void DataFlowAnalysis::trackVariableUsage() {
+  if (!func_ || !func_->body)
+    return;
+
+  // Forward declaration for mutual recursion
+  std::function<void(const std::shared_ptr<AST::Expression>&)> trackExpr;
+  std::function<void(const std::shared_ptr<AST::Statement>&)> trackStmt;
+
+  trackExpr = [&](const std::shared_ptr<AST::Expression> &expr) {
+    if (!expr) return;
+    
+    if (auto var = std::dynamic_pointer_cast<AST::VariableExpr>(expr)) {
+      usedVariables_.insert(var->name);
+    } else if (auto bin = std::dynamic_pointer_cast<AST::BinaryExpr>(expr)) {
+      // For assignments, only track RHS as usage
+      if (bin->op != AST::BinaryExpr::Op::Assign) {
+        trackExpr(bin->left);
+      }
+      trackExpr(bin->right);
+    } else if (auto unary = std::dynamic_pointer_cast<AST::UnaryExpr>(expr)) {
+      trackExpr(unary->operand);
+    } else if (auto call = std::dynamic_pointer_cast<AST::CallExpr>(expr)) {
+      for (const auto &arg : call->arguments) {
+        trackExpr(arg);
+      }
+    } else if (auto cast = std::dynamic_pointer_cast<AST::CastExpr>(expr)) {
+      trackExpr(cast->expr);
+    }
+  };
+
+  trackStmt = [&](const std::shared_ptr<AST::Statement> &stmt) {
+    if (!stmt) return;
+    
+    if (auto compound = std::dynamic_pointer_cast<AST::CompoundStatement>(stmt)) {
+      for (const auto &s : compound->statements) {
+        trackStmt(s);
+      }
+    } else if (auto exprStmt = std::dynamic_pointer_cast<AST::ExpressionStatement>(stmt)) {
+      // Track assignments
+      if (auto bin = std::dynamic_pointer_cast<AST::BinaryExpr>(exprStmt->expression)) {
+        if (bin->op == AST::BinaryExpr::Op::Assign) {
+          if (auto var = std::dynamic_pointer_cast<AST::VariableExpr>(bin->left)) {
+            assignedVariables_.insert(var->name);
+          }
+        }
+      }
+      trackExpr(exprStmt->expression);
+    } else if (auto ifStmt = std::dynamic_pointer_cast<AST::IfStatement>(stmt)) {
+      trackExpr(ifStmt->condition);
+      trackStmt(ifStmt->thenBranch);
+      trackStmt(ifStmt->elseBranch);
+    } else if (auto whileStmt = std::dynamic_pointer_cast<AST::WhileStatement>(stmt)) {
+      trackExpr(whileStmt->condition);
+      trackStmt(whileStmt->body);
+    } else if (auto doWhile = std::dynamic_pointer_cast<AST::DoWhileStatement>(stmt)) {
+      trackExpr(doWhile->condition);
+      trackStmt(doWhile->body);
+    } else if (auto forStmt = std::dynamic_pointer_cast<AST::ForStatement>(stmt)) {
+      trackExpr(forStmt->init);
+      trackExpr(forStmt->condition);
+      trackExpr(forStmt->step);
+      trackStmt(forStmt->body);
+    } else if (auto ret = std::dynamic_pointer_cast<AST::ReturnStatement>(stmt)) {
+      trackExpr(ret->value);
+    }
+  };
+
+  trackStmt(func_->body);
+}
+
+void DataFlowAnalysis::eliminateDeadCode() {
+  if (!func_ || !func_->body)
+    return;
+
+  // Recursively eliminate dead assignments from compound statements
+  std::function<void(std::shared_ptr<AST::CompoundStatement>&)> eliminateFromCompound;
+  
+  eliminateFromCompound = [&](std::shared_ptr<AST::CompoundStatement> &compound) {
+    if (!compound) return;
+    
+    std::vector<std::shared_ptr<AST::Statement>> filtered;
+    
+    for (const auto &stmt : compound->statements) {
+      bool shouldKeep = true;
+      
+      // Check if this is a dead assignment
+      if (auto exprStmt = std::dynamic_pointer_cast<AST::ExpressionStatement>(stmt)) {
+        if (auto bin = std::dynamic_pointer_cast<AST::BinaryExpr>(exprStmt->expression)) {
+          if (bin->op == AST::BinaryExpr::Op::Assign) {
+            if (auto var = std::dynamic_pointer_cast<AST::VariableExpr>(bin->left)) {
+              // If variable is assigned but never used, it's dead code
+              if (usedVariables_.find(var->name) == usedVariables_.end()) {
+                shouldKeep = false;
+              }
+            }
+          }
+        }
+      }
+      
+      // Recursively process nested compound statements
+      if (auto nestedCompound = std::dynamic_pointer_cast<AST::CompoundStatement>(stmt)) {
+        eliminateFromCompound(nestedCompound);
+      } else if (auto ifStmt = std::dynamic_pointer_cast<AST::IfStatement>(stmt)) {
+        if (auto thenCompound = std::dynamic_pointer_cast<AST::CompoundStatement>(ifStmt->thenBranch)) {
+          eliminateFromCompound(thenCompound);
+        }
+        if (auto elseCompound = std::dynamic_pointer_cast<AST::CompoundStatement>(ifStmt->elseBranch)) {
+          eliminateFromCompound(elseCompound);
+        }
+      } else if (auto whileStmt = std::dynamic_pointer_cast<AST::WhileStatement>(stmt)) {
+        if (auto bodyCompound = std::dynamic_pointer_cast<AST::CompoundStatement>(whileStmt->body)) {
+          eliminateFromCompound(bodyCompound);
+        }
+      } else if (auto doWhile = std::dynamic_pointer_cast<AST::DoWhileStatement>(stmt)) {
+        if (auto bodyCompound = std::dynamic_pointer_cast<AST::CompoundStatement>(doWhile->body)) {
+          eliminateFromCompound(bodyCompound);
+        }
+      } else if (auto forStmt = std::dynamic_pointer_cast<AST::ForStatement>(stmt)) {
+        if (auto bodyCompound = std::dynamic_pointer_cast<AST::CompoundStatement>(forStmt->body)) {
+          eliminateFromCompound(bodyCompound);
+        }
+      }
+      
+      if (shouldKeep) {
+        filtered.push_back(stmt);
+      }
+    }
+    
+    compound->statements = filtered;
+  };
+  
+  eliminateFromCompound(func_->body);
 }
 
 } // namespace ShadPKG::Decompiler::Analysis

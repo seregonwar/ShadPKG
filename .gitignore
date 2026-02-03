@@ -37,3 +37,9 @@ export_log_full_clean.txt
 /test_out
 /build
 /external/shadPS4
+eboot.bin
+/pkg-minecraft/EP4433-CUSA00265_00-MINECRAFTPS40000
+/pkg-minecraft
+MINECRAFT_PSN_BYPASS_README.md
+options.txt
+*.bak

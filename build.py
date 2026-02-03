@@ -62,7 +62,8 @@ if __name__ == "__main__":
         "-S", ".",
         "-B", "build",
         f"-DCMAKE_TOOLCHAIN_FILE={toolchain_path}",
-        "-DCMAKE_BUILD_TYPE=Release"
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DBUILD_GUI=ON"
     ]
     
     # Add -DCMAKE_POLICY_DEFAULT_CMP0091=NEW to correctly handle MSVC runtime with Conan

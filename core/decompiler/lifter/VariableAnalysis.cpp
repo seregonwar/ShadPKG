@@ -173,19 +173,40 @@ void VariableAnalysis::createVariable(int offset, int size, bool isParam) {
     var.isParameter = isParam;
 
     std::stringstream ss;
+    
+    // Generate more meaningful names based on offset and size
     if (offset > 0 && isParam) {
       ss << "param_" << std::abs(offset);
     } else if (offset < 0) {
-      ss << "var_" << std::hex << std::abs(offset);
+      // Use more descriptive names for common stack offsets
+      int absOffset = std::abs(offset);
+      
+      // Common pattern: small offsets are often loop counters or temp variables
+      if (absOffset <= 8) {
+        ss << "temp_" << absOffset;
+      }
+      // Medium offsets are often local variables
+      else if (absOffset <= 32) {
+        ss << "local_" << std::hex << absOffset;
+      }
+      // Larger offsets might be arrays or structures
+      else {
+        ss << "var_" << std::hex << absOffset;
+      }
     } else {
       ss << "var_p" << std::hex << offset;
     }
     var.name = ss.str();
 
+    // Infer type based on size
     if (size == 1)
       var.type = AST::Expression::Type::Int8;
+    else if (size == 2)
+      var.type = AST::Expression::Type::Int16;
     else if (size == 8)
       var.type = AST::Expression::Type::Int64;
+    else if (size == 16)
+      var.type = AST::Expression::Type::Int64; // Treat 16-byte as int64 pair
     else
       var.type = AST::Expression::Type::Int32;
 

@@ -38,6 +38,9 @@ set(CORE_SOURCES
     core/file_format/psf.cpp
     core/file_format/rif_generator.cpp
     core/file_format/pkg_type.cpp
+    core/file_format/iso_extractor.cpp
+    core/patcher/psn_bypass.cpp
+    core/patcher/elf_reconstruct.cpp
     core/crypto/crypto.cpp
     core/decompiler/DecompilerContext.cpp
     core/decompiler/analysis/DominatorAnalysis.cpp

@@ -16,6 +16,21 @@ std::shared_ptr<AST::FunctionAST> StructuralAnalysis::analyze() {
   ast->name = func_->name;
   ast->address = func_->address;
 
+  // Pre-pass: identify all blocks that are jump targets (need labels)
+  // Only include targets that actually exist in this function
+  std::set<uint64_t> validBlockIds;
+  for (const auto &bb : func_->basicBlocks) {
+    validBlockIds.insert(bb->id);
+  }
+  for (const auto &bb : func_->basicBlocks) {
+    for (uint64_t succ : bb->successors) {
+      // Only add if the target block exists in this function
+      if (validBlockIds.count(succ) && bb->successors.size() > 1) {
+        gotoTargets_.insert(succ);
+      }
+    }
+  }
+
   if (!func_->basicBlocks.empty()) {
     uint64_t entry = func_->basicBlocks[0]->id;
     auto stmt = structureRegion(entry, 0);
@@ -51,14 +66,9 @@ StructuralAnalysis::structureRegion(uint64_t entryBlock, uint64_t stopBlock) {
 
   while (current != 0 && current != stopBlock) {
     if (structuredBlocks_.count(current)) {
-      // The instruction implies adding checks for 0xffffffffffffffff before
-      // emitting GotoStatement. However, the provided snippet for insertion
-      // uses `bb->successors` which is not available here. The only
-      // GotoStatement emitted here is for `current`. Assuming the intent was to
-      // add a check for `current` itself if it represents an invalid block ID.
-      // Given 0xffffffffffffffff is often used as an invalid address/ID, we'll
-      // add that check.
-      if (current != 0xffffffffffffffff) {
+      // Only emit goto if the target block exists in this function
+      if (current != 0xffffffffffffffff && getBlock(current) != nullptr) {
+        gotoTargets_.insert(current);
         sequence->addStatement(std::make_shared<AST::GotoStatement>(current));
       }
       break;
@@ -269,8 +279,43 @@ std::shared_ptr<AST::CompoundStatement>
 StructuralAnalysis::structureBlock(const std::shared_ptr<IR::BasicBlock> &bb) {
   auto compound = std::make_shared<AST::CompoundStatement>();
 
-  // Emit Label for this block to support gotos
-  if (!emittedLabels_.count(bb->id)) {
+  // Emit label if this block is referenced by any goto statement
+  // This includes: conditional jumps, unconditional jumps, loop headers, switch targets
+  bool needsLabel = false;
+  
+  // Check if any block has this as a successor (potential jump target)
+  for (const auto &otherBB : func_->basicBlocks) {
+    if (otherBB->id == bb->id) continue;
+    
+    // Check if this block is a non-fallthrough successor
+    for (size_t i = 0; i < otherBB->successors.size(); i++) {
+      if (otherBB->successors[i] == bb->id) {
+        // If it's a conditional branch or not the first successor, it needs a label
+        if (otherBB->successors.size() > 1 || i > 0) {
+          needsLabel = true;
+          break;
+        }
+        // Check if it's a back edge (target address < source address)
+        if (bb->id < otherBB->id) {
+          needsLabel = true;
+          break;
+        }
+      }
+    }
+    if (needsLabel) break;
+  }
+  
+  // Loop headers always need labels
+  if (dom_ && dom_->isLoopHeader(bb->id)) {
+    needsLabel = true;
+  }
+  
+  // Blocks that are targets of goto statements need labels
+  if (gotoTargets_.count(bb->id)) {
+    needsLabel = true;
+  }
+  
+  if (needsLabel && !emittedLabels_.count(bb->id)) {
     std::stringstream ss;
     ss << "loc_" << std::hex << bb->id;
     auto labelStmt = std::make_shared<AST::LabelStatement>(ss.str());
@@ -529,8 +574,6 @@ StructuralAnalysis::liftInstruction(const IR::Instruction &instr) {
         } else if (op.name == "RBP") {
           baseExpr = std::make_shared<AST::VariableExpr>("RBP");
         } else {
-          // RSP or others if name is set but memBaseName empty?
-          // Fallback
           baseExpr = std::make_shared<AST::VariableExpr>("reg_" + op.name);
         }
 
@@ -540,7 +583,25 @@ StructuralAnalysis::liftInstruction(const IR::Instruction &instr) {
                                                        baseExpr, disp);
         }
 
-        auto castExpr = std::make_shared<AST::CastExpr>(baseExpr, "int64_t*");
+        // Determine pointer type based on instruction context
+        std::string ptrType = "int64_t*";
+        std::string disasm = instr.disassembly;
+        if (disasm.find("ss") != std::string::npos || 
+            disasm.find("movss") != std::string::npos ||
+            disasm.find("vmovss") != std::string::npos) {
+          ptrType = "float*";
+        } else if (disasm.find("sd") != std::string::npos ||
+                   disasm.find("movsd") != std::string::npos) {
+          ptrType = "double*";
+        } else if (disasm.find("dword") != std::string::npos) {
+          ptrType = "int32_t*";
+        } else if (disasm.find("word ptr") != std::string::npos) {
+          ptrType = "int16_t*";
+        } else if (disasm.find("byte ptr") != std::string::npos) {
+          ptrType = "int8_t*";
+        }
+
+        auto castExpr = std::make_shared<AST::CastExpr>(baseExpr, ptrType);
         return std::make_shared<AST::UnaryExpr>(AST::UnaryExpr::Op::Deref,
                                                 castExpr);
       }
@@ -691,14 +752,23 @@ StructuralAnalysis::liftInstruction(const IR::Instruction &instr) {
   }
 
   // ┌───────────────────────────────────────────────────────────────────┐
-  // │   FALLBACK: Emit unrecognized instruction as inline asm comment   │
-  // │   This ensures valid C++ syntax while preserving debug info.      │
+  // │   FALLBACK: Skip unrecognized instructions that are likely noise  │
+  // │   Only emit truly important ones as comments                      │
   // └───────────────────────────────────────────────────────────────────┘
-  auto asmCall = std::make_shared<AST::CallExpr>("__asm__ volatile");
-  // Use # for asm comments to avoid syntax errors inside string literals
-  asmCall->arguments.push_back(
-      std::make_shared<AST::ConstantExpr>("nop // " + instr.disassembly));
-  return std::make_shared<AST::ExpressionStatement>(asmCall);
+  
+  // Skip common noise instructions
+  std::string disasm = instr.disassembly;
+  if (disasm.find("nop") != std::string::npos ||
+      disasm.find("endbr") != std::string::npos ||
+      disasm.find("int3") != std::string::npos ||
+      disasm.find("ud2") != std::string::npos) {
+    return nullptr; // Skip these entirely
+  }
+  
+  // For potentially important unhandled instructions, emit as comment
+  // This preserves debug info without breaking compilation
+  auto comment = std::make_shared<AST::VariableExpr>("/* " + disasm + " */");
+  return std::make_shared<AST::ExpressionStatement>(comment);
 }
 
 } // namespace ShadPKG::Decompiler::Analysis

@@ -51,9 +51,15 @@ private:
 
   // Track inferred types
   std::map<std::string, AST::Expression::Type> inferredTypes_;
+  
+  // Track variable usage for dead code elimination
+  std::set<std::string> usedVariables_;
+  std::set<std::string> assignedVariables_;
 
   void inferType(const std::string &varName, AST::Expression::Type type);
   void applyTypes();
+  void trackVariableUsage();
+  void eliminateDeadCode();
 };
 
 } // namespace ShadPKG::Decompiler::Analysis

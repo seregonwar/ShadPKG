@@ -3,16 +3,114 @@
 #include "../analysis/SymbolDatabase.h"
 #include "../analysis/TypeSystem.h"
 #include <iomanip>
+#include <functional>
 
 namespace ShadPKG::Decompiler::Codegen {
+
+// Helper to collect all labels from statements recursively
+static void collectLabels(const std::shared_ptr<AST::Statement> &stmt, std::set<std::string> &labels) {
+  if (!stmt) return;
+  if (auto label = std::dynamic_pointer_cast<AST::LabelStatement>(stmt)) {
+    labels.insert(label->name);
+  } else if (auto compound = std::dynamic_pointer_cast<AST::CompoundStatement>(stmt)) {
+    for (const auto &s : compound->statements) collectLabels(s, labels);
+  } else if (auto ifStmt = std::dynamic_pointer_cast<AST::IfStatement>(stmt)) {
+    collectLabels(ifStmt->thenBranch, labels);
+    collectLabels(ifStmt->elseBranch, labels);
+  } else if (auto whileStmt = std::dynamic_pointer_cast<AST::WhileStatement>(stmt)) {
+    collectLabels(whileStmt->body, labels);
+  } else if (auto doWhile = std::dynamic_pointer_cast<AST::DoWhileStatement>(stmt)) {
+    collectLabels(doWhile->body, labels);
+  } else if (auto forStmt = std::dynamic_pointer_cast<AST::ForStatement>(stmt)) {
+    collectLabels(forStmt->body, labels);
+  } else if (auto switchStmt = std::dynamic_pointer_cast<AST::SwitchStmt>(stmt)) {
+    for (const auto &c : switchStmt->cases) collectLabels(c->body, labels);
+  }
+}
+
+// Helper to filter registers - only keep those actually used in expressions
+static void filterUsedRegs(const std::shared_ptr<AST::Statement> &stmt, std::set<std::string> &regs) {
+  if (!stmt) return;
+  
+  std::set<std::string> mentioned;
+  
+  // Forward declarations for mutual recursion
+  std::function<void(const std::shared_ptr<AST::Expression>&)> collectRegsExpr;
+  std::function<void(const std::shared_ptr<AST::Statement>&)> collectRegsStmt;
+  
+  collectRegsExpr = [&](const std::shared_ptr<AST::Expression> &expr) {
+    if (!expr) return;
+    if (auto var = std::dynamic_pointer_cast<AST::VariableExpr>(expr)) {
+      if (var->name.find("reg_") == 0 || var->name.find("xmm") == 0) {
+        mentioned.insert(var->name);
+      }
+    } else if (auto bin = std::dynamic_pointer_cast<AST::BinaryExpr>(expr)) {
+      collectRegsExpr(bin->left);
+      collectRegsExpr(bin->right);
+    } else if (auto unary = std::dynamic_pointer_cast<AST::UnaryExpr>(expr)) {
+      collectRegsExpr(unary->operand);
+    } else if (auto call = std::dynamic_pointer_cast<AST::CallExpr>(expr)) {
+      for (const auto &arg : call->arguments) collectRegsExpr(arg);
+    } else if (auto cast = std::dynamic_pointer_cast<AST::CastExpr>(expr)) {
+      collectRegsExpr(cast->expr);
+    }
+  };
+  
+  collectRegsStmt = [&](const std::shared_ptr<AST::Statement> &s) {
+    if (!s) return;
+    if (auto compound = std::dynamic_pointer_cast<AST::CompoundStatement>(s)) {
+      for (const auto &st : compound->statements) collectRegsStmt(st);
+    } else if (auto exprStmt = std::dynamic_pointer_cast<AST::ExpressionStatement>(s)) {
+      collectRegsExpr(exprStmt->expression);
+    } else if (auto ifStmt = std::dynamic_pointer_cast<AST::IfStatement>(s)) {
+      collectRegsExpr(ifStmt->condition);
+      collectRegsStmt(ifStmt->thenBranch);
+      collectRegsStmt(ifStmt->elseBranch);
+    } else if (auto whileStmt = std::dynamic_pointer_cast<AST::WhileStatement>(s)) {
+      collectRegsExpr(whileStmt->condition);
+      collectRegsStmt(whileStmt->body);
+    } else if (auto doWhile = std::dynamic_pointer_cast<AST::DoWhileStatement>(s)) {
+      collectRegsExpr(doWhile->condition);
+      collectRegsStmt(doWhile->body);
+    } else if (auto forStmt = std::dynamic_pointer_cast<AST::ForStatement>(s)) {
+      collectRegsExpr(forStmt->init);
+      collectRegsExpr(forStmt->condition);
+      collectRegsExpr(forStmt->step);
+      collectRegsStmt(forStmt->body);
+    } else if (auto ret = std::dynamic_pointer_cast<AST::ReturnStatement>(s)) {
+      collectRegsExpr(ret->value);
+    }
+  };
+  
+  collectRegsStmt(stmt);
+  
+  // Keep only registers that are actually mentioned
+  std::set<std::string> filtered;
+  for (const auto &reg : regs) {
+    if (mentioned.count(reg)) {
+      filtered.insert(reg);
+    }
+  }
+  regs = filtered;
+}
 
 std::string
 CppEmitter::generate(const std::shared_ptr<AST::FunctionAST> &func) {
   ss_.str("");
   tokens_.clear();
   usedRegs_.clear();
+  emittedLabels_.clear();
   indentLevel_ = 0;
   currentFunc_ = func;
+
+  // ┌─────────────────────────────────────────────────────────────────────────┐
+  // │  Pre-pass: collect all labels that exist in this function               │
+  // └─────────────────────────────────────────────────────────────────────────┘
+  if (func->body) {
+    for (const auto &stmt : func->body->statements) {
+      collectLabels(stmt, emittedLabels_);
+    }
+  }
 
   // ┌─────────────────────────────────────────────────────────────────────────┐
   // │  Collect used reg_ variables from the body first                        │
@@ -20,6 +118,10 @@ CppEmitter::generate(const std::shared_ptr<AST::FunctionAST> &func) {
   if (func->body) {
     for (const auto &stmt : func->body->statements) {
       collectUsedRegs(stmt);
+    }
+    // Filter to keep only registers actually used in the function body
+    if (func->body && !func->body->statements.empty()) {
+      filterUsedRegs(func->body, usedRegs_);
     }
   }
 
@@ -66,13 +168,20 @@ CppEmitter::generate(const std::shared_ptr<AST::FunctionAST> &func) {
     emit("\n");
     // Initialize argument registers from function parameters (System V AMD64 ABI)
     indent();
-    emit("// Initialize registers from arguments\n");
+    emit("// Initialize registers from arguments (System V AMD64 ABI)\n");
     if (usedRegs_.count("reg_rdi")) { indent(); emit("reg_rdi = a1;\n"); }
     if (usedRegs_.count("reg_rsi")) { indent(); emit("reg_rsi = a2;\n"); }
     if (usedRegs_.count("reg_rdx")) { indent(); emit("reg_rdx = a3;\n"); }
     if (usedRegs_.count("reg_rcx")) { indent(); emit("reg_rcx = a4;\n"); }
     if (usedRegs_.count("reg_r8"))  { indent(); emit("reg_r8 = a5;\n"); }
     if (usedRegs_.count("reg_r9"))  { indent(); emit("reg_r9 = a6;\n"); }
+    
+    // Initialize other commonly used registers to safe values
+    if (usedRegs_.count("reg_rax")) { indent(); emit("reg_rax = (int64_t)&g_ps4_memory[0]; // Safe base pointer\n"); }
+    if (usedRegs_.count("reg_rbx")) { indent(); emit("reg_rbx = (int64_t)&g_ps4_memory[0]; // Safe base pointer\n"); }
+    if (usedRegs_.count("reg_rbp")) { indent(); emit("reg_rbp = (int64_t)&g_ps4_memory[0]; // Safe base pointer\n"); }
+    if (usedRegs_.count("reg_rsp")) { indent(); emit("reg_rsp = (int64_t)&g_ps4_memory[0]; // Safe base pointer\n"); }
+    
     emit("\n");
   }
 
@@ -178,9 +287,6 @@ std::string CppEmitter::inferTypeFromInstruction(uint64_t addr) {
   return "int64_t";
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-//  Expressions
-// ═══════════════════════════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  Expressions
@@ -197,7 +303,100 @@ void CppEmitter::visit(AST::VariableExpr *node) {
   emit(node->name, TokenType::Identifier);
 }
 
+// Helper function for constant folding
+static std::shared_ptr<AST::Expression> foldConstants(
+    AST::BinaryExpr::Op op,
+    std::shared_ptr<AST::Expression> left,
+    std::shared_ptr<AST::Expression> right) {
+  
+  // Only fold if both operands are constants
+  auto leftConst = std::dynamic_pointer_cast<AST::ConstantExpr>(left);
+  auto rightConst = std::dynamic_pointer_cast<AST::ConstantExpr>(right);
+  
+  if (!leftConst || !rightConst) {
+    return nullptr; // Can't fold
+  }
+  
+  // Only fold integer constants for now
+  if (leftConst->kind != AST::ConstantExpr::Kind::Integer ||
+      rightConst->kind != AST::ConstantExpr::Kind::Integer) {
+    return nullptr;
+  }
+  
+  int64_t lval = leftConst->intValue;
+  int64_t rval = rightConst->intValue;
+  int64_t result = 0;
+  bool canFold = true;
+  
+  switch (op) {
+  case AST::BinaryExpr::Op::Add:
+    result = lval + rval;
+    break;
+  case AST::BinaryExpr::Op::Sub:
+    result = lval - rval;
+    break;
+  case AST::BinaryExpr::Op::Mul:
+    result = lval * rval;
+    break;
+  case AST::BinaryExpr::Op::Div:
+    if (rval != 0) result = lval / rval;
+    else canFold = false;
+    break;
+  case AST::BinaryExpr::Op::Mod:
+    if (rval != 0) result = lval % rval;
+    else canFold = false;
+    break;
+  case AST::BinaryExpr::Op::And:
+    result = lval & rval;
+    break;
+  case AST::BinaryExpr::Op::Or:
+    result = lval | rval;
+    break;
+  case AST::BinaryExpr::Op::Xor:
+    result = lval ^ rval;
+    break;
+  case AST::BinaryExpr::Op::Shl:
+    result = lval << rval;
+    break;
+  case AST::BinaryExpr::Op::Shr:
+    result = lval >> rval;
+    break;
+  case AST::BinaryExpr::Op::Eq:
+    result = (lval == rval) ? 1 : 0;
+    break;
+  case AST::BinaryExpr::Op::Ne:
+    result = (lval != rval) ? 1 : 0;
+    break;
+  case AST::BinaryExpr::Op::Lt:
+    result = (lval < rval) ? 1 : 0;
+    break;
+  case AST::BinaryExpr::Op::Le:
+    result = (lval <= rval) ? 1 : 0;
+    break;
+  case AST::BinaryExpr::Op::Gt:
+    result = (lval > rval) ? 1 : 0;
+    break;
+  case AST::BinaryExpr::Op::Ge:
+    result = (lval >= rval) ? 1 : 0;
+    break;
+  default:
+    canFold = false;
+  }
+  
+  if (canFold) {
+    return std::make_shared<AST::ConstantExpr>(result, leftConst->isHex || rightConst->isHex);
+  }
+  
+  return nullptr;
+}
+
 void CppEmitter::visit(AST::BinaryExpr *node) {
+  // Attempt constant folding first
+  if (auto folded = foldConstants(node->op, node->left, node->right)) {
+    folded->accept(this);
+    return;
+  }
+  
   // Check for Bitwise operations on doubles/floats (xmm registers)
   if (node->op == AST::BinaryExpr::Op::Xor ||
       node->op == AST::BinaryExpr::Op::And ||
@@ -227,11 +426,31 @@ void CppEmitter::visit(AST::BinaryExpr *node) {
     }
   }
 
-  emit("(");
-  node->left->accept(this);
-  emit(" " + AST::BinaryExpr::opToString(node->op) + " ");
-  node->right->accept(this);
-  emit(")");
+  // For assignments, don't wrap in parentheses
+  if (node->op == AST::BinaryExpr::Op::Assign) {
+    node->left->accept(this);
+    emit(" = ");
+    node->right->accept(this);
+    return;
+  }
+
+  // For simple expressions (variable op constant), skip outer parentheses
+  bool leftSimple = std::dynamic_pointer_cast<AST::VariableExpr>(node->left) ||
+                    std::dynamic_pointer_cast<AST::ConstantExpr>(node->left);
+  bool rightSimple = std::dynamic_pointer_cast<AST::VariableExpr>(node->right) ||
+                     std::dynamic_pointer_cast<AST::ConstantExpr>(node->right);
+  
+  if (leftSimple && rightSimple) {
+    node->left->accept(this);
+    emit(" " + AST::BinaryExpr::opToString(node->op) + " ");
+    node->right->accept(this);
+  } else {
+    emit("(");
+    node->left->accept(this);
+    emit(" " + AST::BinaryExpr::opToString(node->op) + " ");
+    node->right->accept(this);
+    emit(")");
+  }
 }
 
 void CppEmitter::visit(AST::UnaryExpr *node) {
@@ -492,7 +711,12 @@ void CppEmitter::visit(AST::CastExpr *node) {
   emit("(", TokenType::Text);
   emit(node->targetType, TokenType::Type);
   emit(")", TokenType::Text);
+  // Wrap complex expressions in parentheses to ensure correct precedence
+  bool needsParens = std::dynamic_pointer_cast<AST::BinaryExpr>(node->expr) ||
+                     std::dynamic_pointer_cast<AST::UnaryExpr>(node->expr);
+  if (needsParens) emit("(");
   node->expr->accept(this);
+  if (needsParens) emit(")");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -656,10 +880,18 @@ void CppEmitter::visit(AST::ContinueStatement *node) {
 
 void CppEmitter::visit(AST::GotoStatement *node) {
   indent();
-  emit("goto", TokenType::Keyword);
-  emit(" ", TokenType::Text);
-  emit(node->label, TokenType::Identifier, node->targetAddress);
-  emit(";\n", TokenType::Text);
+  // Only emit goto if the target label exists in this function
+  if (emittedLabels_.count(node->label)) {
+    emit("goto", TokenType::Keyword);
+    emit(" ", TokenType::Text);
+    emit(node->label, TokenType::Identifier, node->targetAddress);
+    emit(";\n", TokenType::Text);
+  } else {
+    // Label doesn't exist - emit as comment to avoid compilation error
+    emit("// goto ", TokenType::Comment);
+    emit(node->label, TokenType::Comment);
+    emit("; // label not in scope\n", TokenType::Comment);
+  }
 }
 
 void CppEmitter::visit(AST::LabelStatement *node) {

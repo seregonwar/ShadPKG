@@ -319,19 +319,39 @@ bool PKG::Extract(const std::filesystem::path &filepath,
   int num_blocks = 0;
   std::vector<u8> pfsc(length);
   if (length != 0) {
-    // Read encrypted pfs_image
-    std::vector<u8> pfs_encrypted(length);
+    // For large files, use streaming to avoid massive memory allocation
+    const size_t CHUNK_SIZE = 0x1000000; // 16MB chunks
+    std::vector<u8> pfs_encrypted(std::min(static_cast<size_t>(length), CHUNK_SIZE));
+    std::vector<u8> pfs_decrypted(std::min(static_cast<size_t>(length), CHUNK_SIZE));
+    
     file.Seek(pkgheader.pfs_image_offset);
-    file.Read(pfs_encrypted);
+    
+    // Read and decrypt in chunks
+    size_t total_read = 0;
+    size_t pfsc_write_pos = 0;
+    
+    while (total_read < length) {
+      size_t to_read = std::min(CHUNK_SIZE, static_cast<size_t>(length - total_read));
+      pfs_encrypted.resize(to_read);
+      pfs_decrypted.resize(to_read);
+      
+      file.ReadRaw<u8>(pfs_encrypted.data(), to_read);
+      
+      // Decrypt chunk
+      PKG::crypto.decryptPFS(dataKey, tweakKey, pfs_encrypted, pfs_decrypted, total_read / 0x1000);
+      
+      // Copy to pfsc buffer
+      size_t to_copy = std::min(to_read, static_cast<size_t>(length - pfsc_write_pos));
+      std::memcpy(pfsc.data() + pfsc_write_pos, pfs_decrypted.data(), to_copy);
+      
+      total_read += to_read;
+      pfsc_write_pos += to_copy;
+    }
+    
     file.Close();
-    // Decrypt the pfs_image.
-    std::vector<u8> pfs_decrypted(length);
-    PKG::crypto.decryptPFS(dataKey, tweakKey, pfs_encrypted, pfs_decrypted, 0);
 
     // Retrieve PFSC from decrypted pfs_image.
-    pfsc_offset = GetPFSCOffset(pfs_decrypted.data(), pfs_decrypted.size());
-    std::memcpy(pfsc.data(), pfs_decrypted.data() + pfsc_offset,
-                length - pfsc_offset);
+    pfsc_offset = GetPFSCOffset(pfsc.data(), pfsc.size());
 
     PFSCHdr pfsChdr;
     std::memcpy(&pfsChdr, pfsc.data(), sizeof(pfsChdr));

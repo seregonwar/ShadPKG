@@ -71,6 +71,8 @@ private:
   int indentLevel_ = 0;
   std::shared_ptr<AST::FunctionAST> currentFunc_;
   std::set<std::string> usedRegs_; // Track reg_ variables to declare
+  std::set<std::string> emittedLabels_; // Track labels that have been emitted
+  std::vector<std::pair<std::string, size_t>> pendingGotos_; // Gotos to validate
 
   void indent();
   void emit(const std::string &str, TokenType type = TokenType::Text,

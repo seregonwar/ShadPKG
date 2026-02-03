@@ -52,6 +52,9 @@ private:
 
   // Set of labels that have already been emitted for a goto statement
   std::set<uint64_t> emittedLabels_;
+  
+  // Set of blocks that are targets of goto statements (need labels)
+  std::set<uint64_t> gotoTargets_;
 
   // ═══════════════════════════════════════════════════════════════════════
   //  Recursive Structuring
