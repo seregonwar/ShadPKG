@@ -1,6 +1,10 @@
 # shadPKG
 
-[![Github All Releases](https://img.shields.io/github/downloads/seregonwar/ShadPKG/total.svg)]()
+[![Status](https://imrf.vercel.app/api/badge?label=Status&status=Active&color=10b981)]()
+[![Platform](https://imrf.vercel.app/api/badge?label=Platform&status=Windows&color=0078d4)]()
+[![License](https://imrf.vercel.app/api/badge?label=License&status=MIT&color=f59e0b)]()
+[![Downloads](https://imrf.vercel.app/api/badge/downloads?source=github&user=seregonwar&repo=ShadPKG)]()
+
 
 **shadPKG** is a C++ tool designed to derive encryption keys and extract content from PlayStation 4 PKG files.
 
@@ -134,7 +138,5 @@ A detailed breakdown of the PKG and PFS formats, including cryptographic flow, d
 
 ## Credits & License
 
-* Based on reverse engineering efforts from the PS4 research community
-* Developed and maintained by **seregonwar**
-* Licensed under **LGPL-2.0-or-later**
-
+* Based on reverse engineering and community documentation.
+* Licensed under MIT.
