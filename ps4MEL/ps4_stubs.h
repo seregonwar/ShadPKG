@@ -266,6 +266,13 @@ using OrbisUserServiceUserId = s32;
 // FUNCTION DECLARATIONS
 // ═══════════════════════════════════════════════════════════════════════════
 
+// ─────────────────────── INDIRECT CALL DISPATCH ───────────────────────
+// Called by decompiler-generated code for 'call rax' / 'call [rax+offset]'.
+// Attempts to cast fn_ptr to the standard int64_t(a1..a6) signature and call it.
+int64_t ps4_indirect_call(void* fn_ptr,
+                          int64_t a1 = 0, int64_t a2 = 0, int64_t a3 = 0,
+                          int64_t a4 = 0, int64_t a5 = 0, int64_t a6 = 0);
+
 extern "C" {
 
 // PAD

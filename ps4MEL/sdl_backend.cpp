@@ -7,6 +7,8 @@
  */
 
 #include "sdl_backend.h"
+
+#ifndef PS4_NO_SDL
 #include <SDL2/SDL.h>
 #include <iostream>
 #include <chrono>
@@ -509,3 +511,44 @@ void ShowDialog(const char* title, const char* message) {
 
 } // namespace SDL
 } // namespace PS4Emu
+
+#else // PS4_NO_SDL - provide no-op stubs
+
+#include <iostream>
+
+namespace PS4Emu {
+namespace SDL {
+
+bool Initialize(const std::string& title, int width, int height) {
+    std::cout << "[SDL] No-SDL stub: Initialize(\"" << title << "\")" << std::endl;
+    return true;
+}
+void Shutdown() {}
+bool IsInitialized() { return false; }
+void* GetWindowHandle() { return nullptr; }
+void* GetRendererHandle() { return nullptr; }
+void* CreateFrameBuffer(int, int) { return nullptr; }
+void DestroyFrameBuffer(void*) {}
+void UpdateFrameBuffer(void*, const void*, int) {}
+void PresentFrameBuffer(void*) {}
+void ClearScreen(uint8_t, uint8_t, uint8_t) {}
+void Present() {}
+void SetVSync(bool) {}
+void DrawText(const char*, int, int, uint8_t, uint8_t, uint8_t) {}
+void DrawRect(int, int, int, int, uint8_t, uint8_t, uint8_t, bool) {}
+void ShowDialog(const char* title, const char* message) {
+    std::cout << "[DIALOG] " << (title ? title : "") << ": " << (message ? message : "") << std::endl;
+}
+void SetDialogMessage(const char*) {}
+const char* GetCurrentDialogMessage() { return ""; }
+void PollEvents() {}
+bool ShouldQuit() { return false; }
+PadState GetPadState() { return PadState{}; }
+uint64_t GetTicks() { return 0; }
+void Delay(uint32_t) {}
+void WaitVBlank() {}
+
+} // namespace SDL
+} // namespace PS4Emu
+
+#endif // PS4_NO_SDL

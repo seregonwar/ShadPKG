@@ -42,6 +42,22 @@
 #endif
 
 // ═══════════════════════════════════════════════════════════════════════════
+// INDIRECT CALL DISPATCH
+// ═══════════════════════════════════════════════════════════════════════════
+
+int64_t ps4_indirect_call(void* fn_ptr,
+                          int64_t a1, int64_t a2, int64_t a3,
+                          int64_t a4, int64_t a5, int64_t a6) {
+    if (!fn_ptr) {
+        LOG_DEBUG("ps4_indirect_call: null fn_ptr, returning 0");
+        return 0;
+    }
+    // All decompiled functions share the same signature: int64_t(int64_t x6)
+    using FnT = int64_t(*)(int64_t, int64_t, int64_t, int64_t, int64_t, int64_t);
+    return reinterpret_cast<FnT>(fn_ptr)(a1, a2, a3, a4, a5, a6);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // GLOBAL STATE
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -613,26 +629,32 @@ s32 sceSaveDataDirNameSearch(void* search) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 s32 sceCommonDialogInitialize() {
+    LOG_INFO("sceCommonDialogInitialize()");
     return ORBIS_OK;
 }
 
 s32 sceMsgDialogInitialize() {
+    LOG_INFO("sceMsgDialogInitialize()");
     return ORBIS_OK;
 }
 
 s32 sceMsgDialogOpen(void* param) {
+    LOG_INFO("sceMsgDialogOpen(param=" << param << ")");
     return ORBIS_OK;
 }
 
 s32 sceMsgDialogUpdateStatus() {
+    LOG_DEBUG("sceMsgDialogUpdateStatus() -> FINISHED");
     return 4; // FINISHED
 }
 
 s32 sceMsgDialogTerminate() {
+    LOG_INFO("sceMsgDialogTerminate()");
     return ORBIS_OK;
 }
 
 s32 sceMsgDialogGetResult(void* result) {
+    LOG_INFO("sceMsgDialogGetResult(result=" << result << ")");
     return ORBIS_OK;
 }
 

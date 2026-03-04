@@ -217,8 +217,7 @@ StructuralAnalysis::matchIf(uint64_t block, uint64_t stopBlock) {
     auto thenStmt = structureRegion(trueSucc, ipdom);
     ifStmt = std::make_shared<AST::IfStatement>(condition, thenStmt, nullptr);
   } else if (trueSucc == ipdom) {
-    auto invertedCond =
-        std::make_shared<AST::UnaryExpr>(AST::UnaryExpr::Op::Not, condition);
+    auto invertedCond = extractCondition(bb, true);
     auto thenStmt = structureRegion(falseSucc, ipdom);
     ifStmt =
         std::make_shared<AST::IfStatement>(invertedCond, thenStmt, nullptr);
@@ -339,7 +338,7 @@ StructuralAnalysis::structureBlock(const std::shared_ptr<IR::BasicBlock> &bb) {
       const auto &next = bb->instructions[i + 1];
       if ((instr.opcode == IR::OpCode::CMP ||
            instr.opcode == IR::OpCode::AND) &&
-          (next.opcode >= IR::OpCode::JE && next.opcode <= IR::OpCode::JL)) {
+          (next.opcode >= IR::OpCode::JE && next.opcode <= IR::OpCode::JNO)) {
         continue;
       }
     }
@@ -458,8 +457,11 @@ StructuralAnalysis::extractCondition(const std::shared_ptr<IR::BasicBlock> &bb,
                                                        baseExpr, disp);
         }
 
-        // Cast to int64_t*
-        auto castExpr = std::make_shared<AST::CastExpr>(baseExpr, "int64_t*");
+        // Wrap with ps4_resolve() so PS4 virtual addresses in registers are
+        // safely mapped into g_ps4_memory (same fix as in liftInstruction)
+        auto resolveCall = std::make_shared<AST::CallExpr>("ps4_resolve");
+        resolveCall->arguments.push_back(baseExpr);
+        auto castExpr = std::make_shared<AST::CastExpr>(resolveCall, "int64_t*");
         return std::make_shared<AST::UnaryExpr>(AST::UnaryExpr::Op::Deref,
                                                 castExpr);
       }
@@ -469,7 +471,7 @@ StructuralAnalysis::extractCondition(const std::shared_ptr<IR::BasicBlock> &bb,
     right = liftOperand(flagSetter->operands[1]);
   }
 
-  AST::BinaryExpr::Op op = AST::BinaryExpr::Op::Eq;
+  AST::BinaryExpr::Op op = AST::BinaryExpr::Op::Ne; // default: != 0
   switch (last.opcode) {
   case IR::OpCode::JE:
     op = AST::BinaryExpr::Op::Eq;
@@ -478,12 +480,27 @@ StructuralAnalysis::extractCondition(const std::shared_ptr<IR::BasicBlock> &bb,
     op = AST::BinaryExpr::Op::Ne;
     break;
   case IR::OpCode::JG:
+  case IR::OpCode::JA:   // unsigned above ~ signed greater (approximation)
     op = AST::BinaryExpr::Op::Gt;
     break;
+  case IR::OpCode::JGE:
+  case IR::OpCode::JAE:  // unsigned above-or-equal
+  case IR::OpCode::JNS:  // not sign = >= 0
+  case IR::OpCode::JNO:  // not overflow
+    op = AST::BinaryExpr::Op::Ge;
+    break;
   case IR::OpCode::JL:
+  case IR::OpCode::JB:   // unsigned below ~ signed less (approximation)
+  case IR::OpCode::JS:   // sign set = < 0
+  case IR::OpCode::JO:   // overflow
     op = AST::BinaryExpr::Op::Lt;
     break;
+  case IR::OpCode::JLE:
+  case IR::OpCode::JBE:  // unsigned below-or-equal
+    op = AST::BinaryExpr::Op::Le;
+    break;
   default:
+    op = AST::BinaryExpr::Op::Ne;
     break;
   }
 
@@ -500,6 +517,12 @@ StructuralAnalysis::extractCondition(const std::shared_ptr<IR::BasicBlock> &bb,
       break;
     case AST::BinaryExpr::Op::Lt:
       op = AST::BinaryExpr::Op::Ge;
+      break;
+    case AST::BinaryExpr::Op::Ge:
+      op = AST::BinaryExpr::Op::Lt;
+      break;
+    case AST::BinaryExpr::Op::Le:
+      op = AST::BinaryExpr::Op::Gt;
       break;
     default:
       break;
@@ -601,7 +624,11 @@ StructuralAnalysis::liftInstruction(const IR::Instruction &instr) {
           ptrType = "int8_t*";
         }
 
-        auto castExpr = std::make_shared<AST::CastExpr>(baseExpr, ptrType);
+        // Wrap with ps4_resolve() so PS4 virtual addresses are safely mapped
+        // into g_ps4_memory instead of being used as raw host pointers.
+        auto resolveCall = std::make_shared<AST::CallExpr>("ps4_resolve");
+        resolveCall->arguments.push_back(baseExpr);
+        auto castExpr = std::make_shared<AST::CastExpr>(resolveCall, ptrType);
         return std::make_shared<AST::UnaryExpr>(AST::UnaryExpr::Op::Deref,
                                                 castExpr);
       }
@@ -729,25 +756,38 @@ StructuralAnalysis::liftInstruction(const IR::Instruction &instr) {
   }
 
   if (instr.opcode == IR::OpCode::CALL) {
-    uint64_t target = 0;
-    if (!instr.operands.empty() &&
-        instr.operands[0].type == IR::Operand::Type::Immediate) {
-      target = instr.operands[0].value;
-      std::string funcName = "";
-      if (symbols_) {
-        auto parsedName = symbols_->getFunctionName(target);
-        if (parsedName)
-          funcName = *parsedName;
+    if (!instr.operands.empty()) {
+      // ── Direct call (immediate target) ───────────────────────────────────
+      if (instr.operands[0].type == IR::Operand::Type::Immediate) {
+        uint64_t target = instr.operands[0].value;
+        std::string funcName;
+        if (symbols_) {
+          auto parsedName = symbols_->getFunctionName(target);
+          if (parsedName)
+            funcName = *parsedName;
+        }
+        if (funcName.empty()) {
+          std::stringstream ss;
+          ss << "sub_" << std::hex << target;
+          funcName = ss.str();
+        }
+        auto callExpr = std::make_shared<AST::CallExpr>(target);
+        callExpr->functionName = funcName;
+        return std::make_shared<AST::ExpressionStatement>(callExpr);
       }
-      if (funcName.empty()) {
-        std::stringstream ss;
-        ss << "sub_" << std::hex << target;
-        funcName = ss.str();
-      }
-      auto callExpr = std::make_shared<AST::CallExpr>(target);
-      callExpr->functionName = funcName;
 
-      return std::make_shared<AST::ExpressionStatement>(callExpr);
+      // ── Indirect call (register or memory target) ──────────────────────
+      // e.g.  call rax          ->  call reg_rax
+      //       call [rax + 0x18] ->  call *(int64_t*)(reg_rax + 0x18)
+      // Emit: ps4_indirect_call(<target>, rdi, rsi, rdx, rcx, r8, r9)
+      auto targetExpr = liftOp(instr.operands[0]);
+      auto call = std::make_shared<AST::CallExpr>("ps4_indirect_call");
+      // Cast target to void*
+      call->arguments.push_back(
+          std::make_shared<AST::CastExpr>(targetExpr, "void*"));
+      // Inject ABI argument registers if they were recently assigned
+      // (regValues is tracked in structureBlock and injected after this return)
+      return std::make_shared<AST::ExpressionStatement>(call);
     }
   }
 

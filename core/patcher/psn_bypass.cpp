@@ -277,15 +277,13 @@ GamePatchSet PSNBypass::getMinecraftPatches(const std::string &version) {
     // Patch 1: Skip PSN sign-in check
     // This typically involves finding the sceUserServiceGetNpAccountId call
     // and making it return success (0) without actually checking
-    /*
     patchSet.patches.push_back(
         {"PSN_SignIn_Bypass",
          "Bypass PSN sign-in requirement (Force SignIn Flag)",
-         0x108414, // Offset found by Xref analysis
+         0x108414, // Offset verified: C6 83 D0 01 00 00 00 -> 00 is at 0x108414
          {0x00},   // Original byte (MOV BYTE PTR [RBX+1D0], 0)
          {0x01},   // Patched byte (MOV BYTE PTR [RBX+1D0], 1)
          PatchType::CUSTOM});
-    */
 
     // Patch 2: Skip PS Plus check for multiplayer (Require finding real offset)
     /*

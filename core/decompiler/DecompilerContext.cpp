@@ -63,6 +63,10 @@ bool DecompilerContext::LoadELF(const std::vector<uint8_t> &data) {
   uint64_t phOff = 0;
   uint16_t phEntSize = 0;
   uint16_t phNum = 0;
+  uint64_t shOff = 0;
+  uint16_t shEntSize = 0;
+  uint16_t shNum = 0;
+  uint16_t shStrNdx = 0;
 
   if (data.size() < elfOffset + 64)
     return false;
@@ -71,6 +75,10 @@ bool DecompilerContext::LoadELF(const std::vector<uint8_t> &data) {
   std::memcpy(&phOff, elfBase + 0x20, 8);
   std::memcpy(&phEntSize, elfBase + 0x36, 2);
   std::memcpy(&phNum, elfBase + 0x38, 2);
+  std::memcpy(&shOff, elfBase + 0x28, 8);
+  std::memcpy(&shEntSize, elfBase + 0x3A, 2);
+  std::memcpy(&shNum, elfBase + 0x3C, 2);
+  std::memcpy(&shStrNdx, elfBase + 0x3E, 2);
   // Capture entry point for later use in ExportProject
   entryPoint_ = entryPoint;
 
@@ -109,6 +117,7 @@ bool DecompilerContext::LoadELF(const std::vector<uint8_t> &data) {
       // Absolute offset in rawData_
       seg.fileOffset = elfOffset + p_offset;
       seg.size = p_filesz;
+      seg.memSize = p_memsz;  // Include BSS zero-padding
       segments_.push_back(seg);
 
       if (p_vaddr < minVA)
@@ -117,6 +126,36 @@ bool DecompilerContext::LoadELF(const std::vector<uint8_t> &data) {
       LOG_INFO(Common,
                "Segment: VA=0x{:X}, Offset=0x{:X} (Abs: 0x{:X}), Size=0x{:X}",
                p_vaddr, p_offset, seg.fileOffset, p_filesz);
+    } else if (p_type == 3) { // PT_DYNAMIC
+      // Parse .dynamic section to find DT_INIT_ARRAY and DT_INIT_ARRAYSZ
+      LOG_INFO(Common, "PT_DYNAMIC found at VA=0x{:X}, offset=0x{:X}, size=0x{:X}",
+               p_vaddr, p_offset, p_filesz);
+      
+      if (elfOffset + p_offset + p_filesz <= data.size()) {
+        const uint8_t *dynBase = elfBase + p_offset;
+        // Parse dynamic entries (16 bytes each: tag + value)
+        for (size_t dynOff = 0; dynOff < p_filesz; dynOff += 16) {
+          uint64_t d_tag = 0;
+          uint64_t d_val = 0;
+          std::memcpy(&d_tag, dynBase + dynOff, 8);
+          std::memcpy(&d_val, dynBase + dynOff + 8, 8);
+          
+          if (d_tag == 0) break; // DT_NULL
+          if (d_tag == 25) { // DT_INIT_ARRAY
+            initArrayAddr_ = d_val;
+            LOG_INFO(Common, "DT_INIT_ARRAY found at VA=0x{:X}", initArrayAddr_);
+          } else if (d_tag == 27) { // DT_INIT_ARRAYSZ
+            initArraySize_ = d_val;
+            LOG_INFO(Common, "DT_INIT_ARRAYSZ = 0x{:X}", initArraySize_);
+          } else if (d_tag == 26) { // DT_FINI_ARRAY
+            finiArrayAddr_ = d_val;
+            LOG_INFO(Common, "DT_FINI_ARRAY found at VA=0x{:X}", finiArrayAddr_);
+          } else if (d_tag == 28) { // DT_FINI_ARRAYSZ
+            finiArraySize_ = d_val;
+            LOG_INFO(Common, "DT_FINI_ARRAYSZ = 0x{:X}", finiArraySize_);
+          }
+        }
+      }
     }
   }
 
@@ -132,6 +171,72 @@ bool DecompilerContext::LoadELF(const std::vector<uint8_t> &data) {
     seg.size = data.size() - elfOffset;
     segments_.push_back(seg);
     baseAddress_ = 0x400000;
+  }
+
+  // Parse Section Headers to find .init_array and .fini_array
+  initArrayAddr_ = 0;
+  initArraySize_ = 0;
+  finiArrayAddr_ = 0;
+  finiArraySize_ = 0;
+
+  LOG_INFO(Common, "Section Header Info: shNum={}, shOff=0x{:X}, shEntSize={}, shStrNdx={}",
+           shNum, shOff, shEntSize, shStrNdx);
+
+  if (shNum > 0 && shOff > 0) {
+    // Get string table section header first
+    if (shStrNdx < shNum) {
+      size_t strShOffset = shOff + (shStrNdx * shEntSize);
+      if (elfOffset + strShOffset + shEntSize <= data.size()) {
+        const uint8_t *strShBase = elfBase + strShOffset;
+        uint64_t strShAddr = 0;
+        uint64_t strShOffset_file = 0;
+        uint64_t strShSize = 0;
+        std::memcpy(&strShAddr, strShBase + 0x10, 8);
+        std::memcpy(&strShOffset_file, strShBase + 0x18, 8);
+        std::memcpy(&strShSize, strShBase + 0x20, 8);
+
+        LOG_INFO(Common, "String table: offset=0x{:X}, size=0x{:X}", strShOffset_file, strShSize);
+
+        // Parse all section headers
+        for (int i = 0; i < shNum; ++i) {
+          size_t shOffset = shOff + (i * shEntSize);
+          if (elfOffset + shOffset + shEntSize > data.size())
+            break;
+
+          const uint8_t *shBase = elfBase + shOffset;
+          uint32_t sh_name = 0;
+          uint32_t sh_type = 0;
+          uint64_t sh_addr = 0;
+          uint64_t sh_offset = 0;
+          uint64_t sh_size = 0;
+
+          std::memcpy(&sh_name, shBase, 4);
+          std::memcpy(&sh_type, shBase + 4, 4);
+          std::memcpy(&sh_addr, shBase + 0x10, 8);
+          std::memcpy(&sh_offset, shBase + 0x18, 8);
+          std::memcpy(&sh_size, shBase + 0x20, 8);
+
+          // Get section name from string table
+          if (sh_name < strShSize && elfOffset + strShOffset_file + sh_name < data.size()) {
+            const char *name = reinterpret_cast<const char *>(
+                data.data() + elfOffset + strShOffset_file + sh_name);
+            std::string sectionName(name);
+
+            if (sectionName == ".init_array") {
+              initArrayAddr_ = sh_addr;
+              initArraySize_ = sh_size;
+              LOG_INFO(Common, ".init_array found at VA=0x{:X}, size=0x{:X}",
+                       initArrayAddr_, initArraySize_);
+            } else if (sectionName == ".fini_array") {
+              finiArrayAddr_ = sh_addr;
+              finiArraySize_ = sh_size;
+              LOG_INFO(Common, ".fini_array found at VA=0x{:X}, size=0x{:X}",
+                       finiArrayAddr_, finiArraySize_);
+            }
+          }
+        }
+      }
+    }
   }
 
   return true;
@@ -365,10 +470,49 @@ void DecompilerContext::Analyze() {
             instr.opcode = IR::OpCode::JMP;
             break;
           case X86_INS_JE:
+          case X86_INS_JCXZ:
+          case X86_INS_JECXZ:
+          case X86_INS_JRCXZ:
             instr.opcode = IR::OpCode::JE;
             break;
           case X86_INS_JNE:
             instr.opcode = IR::OpCode::JNE;
+            break;
+          case X86_INS_JG:
+            instr.opcode = IR::OpCode::JG;
+            break;
+          case X86_INS_JGE:
+            instr.opcode = IR::OpCode::JGE;
+            break;
+          case X86_INS_JL:
+            instr.opcode = IR::OpCode::JL;
+            break;
+          case X86_INS_JLE:
+            instr.opcode = IR::OpCode::JLE;
+            break;
+          case X86_INS_JA:
+            instr.opcode = IR::OpCode::JA;
+            break;
+          case X86_INS_JAE:
+            instr.opcode = IR::OpCode::JAE;
+            break;
+          case X86_INS_JB:
+            instr.opcode = IR::OpCode::JB;
+            break;
+          case X86_INS_JBE:
+            instr.opcode = IR::OpCode::JBE;
+            break;
+          case X86_INS_JS:
+            instr.opcode = IR::OpCode::JS;
+            break;
+          case X86_INS_JNS:
+            instr.opcode = IR::OpCode::JNS;
+            break;
+          case X86_INS_JO:
+            instr.opcode = IR::OpCode::JO;
+            break;
+          case X86_INS_JNO:
+            instr.opcode = IR::OpCode::JNO;
             break;
           case X86_INS_CMP:
             instr.opcode = IR::OpCode::CMP;
@@ -816,24 +960,13 @@ void DecompilerContext::ExportProject(const std::string &outPath) {
     hFuncs << "#include \"types.h\"\n";
     hFuncs << "#include <cstdint>\n\n";
 
+    // All functions use uniform int64_t(a1..a6) signature to match CppEmitter output.
+    // Default args allow call sites with fewer arguments to compile cleanly.
+    static const char* kFuncSig =
+        "(int64_t a1 = 0, int64_t a2 = 0, int64_t a3 = 0, "
+        "int64_t a4 = 0, int64_t a5 = 0, int64_t a6 = 0);\n";
     for (const auto &func : functions_) {
-      if (nameToAst.count(func->name)) {
-        auto &ast = nameToAst[func->name];
-        hFuncs << ast->returnType << " " << ast->name << "(";
-        for (size_t j = 0; j < ast->parameters.size(); ++j) {
-          if (j > 0)
-            hFuncs << ", ";
-          hFuncs << ast->parameters[j].getTypeName() << " "
-                 << ast->parameters[j].name;
-        }
-        hFuncs << ");\n";
-      } else {
-        // Fallback for skipped functions: provide generic prototype to allow
-        // callers to compile
-        hFuncs << "int64_t " << func->name
-               << "(int64_t a1 = 0, int64_t a2 = 0, int64_t a3 = 0, "
-                  "int64_t a4 = 0, int64_t a5 = 0, int64_t a6 = 0);\n";
-      }
+      hFuncs << "int64_t " << func->name << kFuncSig;
     }
   }
 
@@ -883,9 +1016,31 @@ void DecompilerContext::ExportProject(const std::string &outPath) {
 
     hGlobals << "#pragma once\n";
     hGlobals << "#include \"types.h\"\n";
-    hGlobals << "#include <cstdint>\n\n";
+    hGlobals << "#include <cstdint>\n";
+    hGlobals << "#include \"ps4_stubs.h\"\n\n";
+    // g_ps4_memory is the flat PS4 global address space, backed by ps4MEL.
+    // Initialized in main() after runtime_init().
+    hGlobals << "// PS4 flat memory space - index with PS4 virtual address\n";
+    hGlobals << "extern uint8_t* g_ps4_memory;\n\n";
+    hGlobals << "// Translate a value that may be a PS4 virtual address or a host pointer\n";
+    hGlobals << "// into a safe host pointer for dereference.\n";
+    hGlobals << "// - Small values (<= 16MB) are PS4 virtual addresses -> map into g_ps4_memory\n";
+    hGlobals << "// - Values inside the g_ps4_memory allocation are used directly\n";
+    hGlobals << "// - Other values (nullptr or huge) fall back to g_ps4_memory base\n";
+    hGlobals << "inline void* ps4_resolve(int64_t addr) {\n";
+    hGlobals << "    if (!g_ps4_memory) return (void*)g_ps4_memory;\n";
+    hGlobals << "    const int64_t base = (int64_t)g_ps4_memory;\n";
+    hGlobals << "    // Already a host pointer inside g_ps4_memory\n";
+    hGlobals << "    if (addr >= base && addr < base + 0x1000000LL) return (void*)addr;\n";
+    hGlobals << "    // PS4 virtual address: map into emulated memory (clamp to valid range)\n";
+    hGlobals << "    uint64_t va = (uint64_t)addr;\n";
+    hGlobals << "    if (va >= 0x1000000ULL) va = va % 0x1000000ULL;\n";
+    hGlobals << "    return (void*)&g_ps4_memory[va];\n";
+    hGlobals << "}\n\n";
 
     cppGlobals << "#include \"../include/globals.h\"\n\n";
+    cppGlobals << "// Initialized in main() via PS4Emu::GetGlobalMemoryBase()\n";
+    cppGlobals << "uint8_t* g_ps4_memory = nullptr;\n\n";
 
     // We need to iterate the symbol database for globals
     if (symbolDatabase_) {
@@ -970,13 +1125,17 @@ void DecompilerContext::ExportProject(const std::string &outPath) {
   {
     std::filesystem::create_directories(root / "ps4mel");
     
-    // List of ps4MEL files to copy
+    // List of ps4MEL files to copy - all headers and implementations
     std::vector<std::string> ps4melFiles = {
         "ps4_memory.cpp", "ps4_memory.h",
         "ps4_kernel.cpp", "ps4_kernel.h",
         "ps4_pthread.cpp", "ps4_pthread.h",
         "ps4_tls.cpp", "ps4_tls.h",
-        "ps4_stubs.cpp",
+        "ps4_stubs.cpp", "ps4_stubs.h",
+        "ps4_safe_memory.h",
+        "sdl_backend.cpp", "sdl_backend.h",
+        "gnm_driver.h",
+        "ps4_graphics.h",
         "runtime.cpp", "runtime.h"
     };
     
@@ -1036,131 +1195,211 @@ void DecompilerContext::ExportProject(const std::string &outPath) {
       }
     }
 
-    // 2. Export Runtime Header
-    {
-      std::ofstream rtH(root / "include" / "runtime.h");
-      rtH << "#pragma once\n";
-      rtH << "#include <cstdint>\n";
-      rtH << "#include <string>\n\n";
-      rtH << "void runtime_init();\n";
-      rtH << "std::string resolve_path(const std::string& ps4_path);\n\n";
-      rtH << "// List of mocked PS4 system calls\n";
-      rtH << "extern \"C\" {\n";
-      rtH << "    int sceKernelOpen(const char* path, int flags, int mode);\n";
-      rtH << "    int sceKernelRead(int fd, void* buf, size_t nbyte);\n";
-      rtH << "    int sceKernelClose(int fd);\n";
-      rtH << "    // Add more mocks as needed...\n";
-      rtH << "}\n";
-    }
-
-    // 3. Export Runtime Implementation
-    {
-      std::ofstream rtCpp(root / "src" / "runtime.cpp");
-      rtCpp << "#include \"../include/runtime.h\"\n";
-      rtCpp << "#include <iostream>\n";
-      rtCpp << "#include <filesystem>\n";
-      rtCpp << "#include <map>\n\n";
-      rtCpp << "void runtime_init() {\n";
-      rtCpp << "    std::cout << \"[RUNTIME] Initializing PS4 Mock "
-               "Runtime...\" << std::endl;\n";
-      rtCpp << "    std::cout << \"[RUNTIME] VFS Root: \" << "
-               "std::filesystem::current_path() / \"assets\" << std::endl;\n";
-      rtCpp << "}\n\n";
-      rtCpp << "std::string resolve_path(const std::string& ps4_path) {\n";
-      rtCpp << "    // Implementation of path redirection (e.g. /app0/ -> "
-               "assets/)\n";
-      rtCpp << "    std::string path = ps4_path;\n";
-      rtCpp << "    if (path.find(\"/app0/\") == 0) {\n";
-      rtCpp << "        return \"assets/\" + path.substr(6);\n";
-      rtCpp << "    }\n";
-      rtCpp << "    return \"assets/\" + path;\n";
-      rtCpp << "}\n\n";
-      rtCpp << "extern \"C\" {\n";
-      rtCpp
-          << "    int sceKernelOpen(const char* path, int flags, int mode) {\n";
-      rtCpp << "        std::cout << \"[RUNTIME] sceKernelOpen: \" << path << "
-               "std::endl;\n";
-      rtCpp << "        return -1; // Mock return\n";
-      rtCpp << "    }\n";
-      rtCpp << "    int sceKernelRead(int fd, void* buf, size_t nbyte) { "
-               "return 0; }\n";
-      rtCpp << "    int sceKernelClose(int fd) { return 0; }\n";
-      rtCpp << "}\n";
-    }
-
     // 4. Export Main (using ps4MEL runtime)
     {
-      std::ofstream mainCpp(root / "src" / "main.cpp");
-      mainCpp << "/*\n";
-      mainCpp << " * Decompiled Game - Main Entry Point\n";
-      mainCpp << " * Generated by ShadPKG Decompiler\n";
-      mainCpp << " * Uses ps4MEL (PS4 Memory Emulation Layer) for runtime support\n";
-      mainCpp << " */\n\n";
-      mainCpp << "#include \"../include/functions.h\"\n";
-      mainCpp << "#include \"../ps4mel/runtime.h\"\n";
-      mainCpp << "#include \"../ps4mel/ps4_memory.h\"\n";
-      mainCpp << "#include <iostream>\n";
-      mainCpp << "#include <csignal>\n";
-      mainCpp << "#include <cstdlib>\n\n";
-      
-      mainCpp << "// Signal handler for graceful shutdown\n";
-      mainCpp << "static volatile bool g_running = true;\n";
-      mainCpp << "void signal_handler(int sig) {\n";
-      mainCpp << "    std::cout << \"\\n[RUNTIME] Caught signal \" << sig << \", shutting down...\" << std::endl;\n";
-      mainCpp << "    std::cout << \"[RUNTIME] Final frame count: \" << PS4Emu::GetFrameCounter() << std::endl;\n";
-      mainCpp << "    g_running = false;\n";
-      mainCpp << "}\n\n";
-      
-      mainCpp << "int main(int argc, char* argv[]) {\n";
-      mainCpp << "    // Setup signal handlers\n";
-      mainCpp << "    std::signal(SIGINT, signal_handler);\n";
-      mainCpp << "    std::signal(SIGTERM, signal_handler);\n\n";
-      mainCpp << "    std::cout << \"[RUNTIME] ══════════════════════════════════════════════\" << std::endl;\n";
-      mainCpp << "    std::cout << \"[RUNTIME] ShadPKG Decompiled Game Runtime\" << std::endl;\n";
-      mainCpp << "    std::cout << \"[RUNTIME] ══════════════════════════════════════════════\" << std::endl;\n\n";
-      mainCpp << "    // Initialize ps4MEL runtime (memory, TLS, VFS)\n";
-      mainCpp << "    runtime_init();\n\n";
-
       // Find entry point name
-      std::string entryName = "sub_" + std::to_string(entryPoint_);
-      auto it =
-          std::find_if(functions_.begin(), functions_.end(),
-                       [this](auto f) { return f->address == entryPoint_; });
+      std::string entryName = "";
+      {
+        std::stringstream ss;
+        ss << "sub_" << std::hex << entryPoint_;
+        entryName = ss.str();
+      }
+      auto it = std::find_if(functions_.begin(), functions_.end(),
+                             [this](auto f) { return f->address == entryPoint_; });
       if (it != functions_.end()) {
         entryName = (*it)->name;
       }
 
-      mainCpp << "    std::cout << \"[RUNTIME] Entry point: " << entryName 
-              << " (0x" << std::hex << entryPoint_ << std::dec << ")\" << std::endl;\n";
-      mainCpp << "    std::cout << \"[RUNTIME] Initializing global context...\" << std::endl;\n\n";
+      std::ofstream mainCpp(root / "src" / "main.cpp");
+      mainCpp << "/*\n"
+              << " * Decompiled Game - Main Entry Point\n"
+              << " * Generated by ShadPKG Decompiler\n"
+              << " * Entry point: " << entryName
+              << " @ 0x" << std::hex << entryPoint_ << std::dec << "\n"
+              << " */\n\n";
+      mainCpp << "#include \"../include/functions.h\"\n";
+      mainCpp << "#include \"../include/globals.h\"\n";
+      mainCpp << "#include \"../ps4mel/runtime.h\"\n";
+      mainCpp << "#include \"../ps4mel/ps4_memory.h\"\n";
+      mainCpp << "#include <cstdio>\n";
+      mainCpp << "#include <cstring>\n";
+      mainCpp << "#include <vector>\n";
+      mainCpp << "#include <iostream>\n";
+      mainCpp << "#include <csignal>\n";
+      mainCpp << "#include <cstdlib>\n\n";
+
+      mainCpp << "// ─── Signal handler ───────────────────────────────────────\n";
+      mainCpp << "static volatile bool g_running = true;\n";
+      mainCpp << "static void signal_handler(int sig) {\n";
+      mainCpp << "    (void)sig;\n";
+      mainCpp << "    std::cout << \"\\n[RUNTIME] Signal caught, shutting down...\" << std::endl;\n";
+      mainCpp << "    g_running = false;\n";
+      mainCpp << "    std::exit(0);\n";
+      mainCpp << "}\n\n";
+
+      mainCpp << "// ─── Load ELF segments from memory.bin ─────────────────────\n";
+      mainCpp << "static void load_memory_bin() {\n";
+      mainCpp << "    FILE* f = std::fopen(\"data/memory.bin\", \"rb\");\n";
+      mainCpp << "    if (!f) { std::cout << \"[RUNTIME] No data/memory.bin found, skipping.\" << std::endl; return; }\n";
+      mainCpp << "    uint32_t magic = 0, num_segs = 0;\n";
+      mainCpp << "    std::fread(&magic, 4, 1, f);\n";
+      mainCpp << "    if (magic != 0x34345350u) { std::fclose(f); return; } // 'PS44'\n";
+      mainCpp << "    std::fread(&num_segs, 4, 1, f);\n";
+      mainCpp << "    for (uint32_t i = 0; i < num_segs; i++) {\n";
+      mainCpp << "        uint64_t vaddr = 0, size = 0;\n";
+      mainCpp << "        std::fread(&vaddr, 8, 1, f);\n";
+      mainCpp << "        std::fread(&size, 8, 1, f);\n";
+      mainCpp << "        if (size == 0) continue;\n";
+      mainCpp << "        // Translate virtual address to offset in g_ps4_memory\n";
+      mainCpp << "        void* dst = PS4Emu::TranslateAddress(vaddr);\n";
+      mainCpp << "        if (dst) std::fread(dst, 1, size, f);\n";
+      mainCpp << "        else { std::vector<uint8_t> skip(size); std::fread(skip.data(), 1, size, f); }\n";
+      mainCpp << "    }\n";
+      mainCpp << "    std::fclose(f);\n";
+      mainCpp << "    std::cout << \"[RUNTIME] ELF segments loaded from data/memory.bin\" << std::endl;\n";
+      mainCpp << "}\n\n";
+
+      mainCpp << "int main(int argc, char* argv[]) {\n";
+      mainCpp << "    (void)argc; (void)argv;\n";
+      mainCpp << "    std::signal(SIGINT, signal_handler);\n";
+      mainCpp << "    std::signal(SIGTERM, signal_handler);\n\n";
+      mainCpp << "    std::cout << \"[RUNTIME] ShadPKG Decompiled Runtime starting...\" << std::endl;\n\n";
+      mainCpp << "    // 1. Init ps4MEL (memory, TLS, VFS)\n";
+      mainCpp << "    runtime_init();\n\n";
+      mainCpp << "    // 2. Point g_ps4_memory at ps4MEL's allocated block\n";
+      mainCpp << "    g_ps4_memory = static_cast<uint8_t*>(PS4Emu::GetGlobalMemoryBase());\n";
+      mainCpp << "    if (!g_ps4_memory) {\n";
+      mainCpp << "        std::cerr << \"[RUNTIME] FATAL: ps4MEL memory not initialized\" << std::endl;\n";
+      mainCpp << "        return 1;\n";
+      mainCpp << "    }\n\n";
+      mainCpp << "    // 3. Load ELF segment data into g_ps4_memory\n";
+      mainCpp << "    load_memory_bin();\n\n";
       
-      mainCpp << "    // Uncomment the line below to start game execution\n";
-      mainCpp << "    // WARNING: The game may crash or hang if not all dependencies are satisfied\n";
-      mainCpp << "    // " << entryName << "();\n\n";
+      // Add .init_array execution if present
+      if (initArrayAddr_ != 0 && initArraySize_ > 0) {
+        mainCpp << "    // 4. Execute .init_array constructors\n";
+        mainCpp << "    {\n";
+        mainCpp << "        typedef int64_t (*init_func_t)(void);\n";
+        mainCpp << "        uint64_t init_array_va = 0x" << std::hex << initArrayAddr_ << std::dec << ";\n";
+        mainCpp << "        uint64_t init_array_size = 0x" << std::hex << initArraySize_ << std::dec << ";\n";
+        mainCpp << "        uint64_t num_funcs = init_array_size / sizeof(uint64_t);\n";
+        mainCpp << "        std::cout << \"[RUNTIME] Executing \" << num_funcs << \" .init_array functions...\" << std::endl;\n";
+        mainCpp << "        for (uint64_t i = 0; i < num_funcs; i++) {\n";
+        mainCpp << "            uint64_t func_ptr_addr = init_array_va + (i * sizeof(uint64_t));\n";
+        mainCpp << "            uint64_t func_ptr = *((uint64_t*)(g_ps4_memory + func_ptr_addr));\n";
+        mainCpp << "            if (func_ptr != 0) {\n";
+        mainCpp << "                init_func_t init_func = reinterpret_cast<init_func_t>(g_ps4_memory + func_ptr);\n";
+        mainCpp << "                try {\n";
+        mainCpp << "                    init_func();\n";
+        mainCpp << "                } catch (...) {\n";
+        mainCpp << "                    std::cerr << \"[RUNTIME] .init_array[\" << i << \"] threw exception\" << std::endl;\n";
+        mainCpp << "                }\n";
+        mainCpp << "            }\n";
+        mainCpp << "        }\n";
+        mainCpp << "    }\n\n";
+      }
       
-      mainCpp << "    // For debugging: run a test loop to verify runtime is working\n";
-      mainCpp << "    std::cout << \"[RUNTIME] Runtime initialized successfully.\" << std::endl;\n";
-      mainCpp << "    std::cout << \"[RUNTIME] To run the game, uncomment the entry point call in main.cpp\" << std::endl;\n";
-      mainCpp << "    std::cout << \"[RUNTIME] Frame counter location: 0x9d9e30\" << std::endl;\n\n";
-      
-      mainCpp << "    // Cleanup\n";
+      mainCpp << "    std::cout << \"[RUNTIME] Entry: " << entryName << " @ 0x"
+              << std::hex << entryPoint_ << std::dec << "\" << std::endl;\n\n";
+      mainCpp << "    // 4. Run the decompiled entry point\n";
+      mainCpp << "    try {\n";
+      mainCpp << "        int64_t result = " << entryName << "();\n";
+      mainCpp << "        std::cout << \"[RUNTIME] Entry returned: \" << result << std::endl;\n";
+      mainCpp << "    } catch (const std::exception& e) {\n";
+      mainCpp << "        std::cerr << \"[RUNTIME] Exception: \" << e.what() << std::endl;\n";
+      mainCpp << "    } catch (...) {\n";
+      mainCpp << "        std::cerr << \"[RUNTIME] Unknown exception\" << std::endl;\n";
+      mainCpp << "    }\n\n";
       mainCpp << "    runtime_shutdown();\n";
-      mainCpp << "    std::cout << \"[RUNTIME] Shutdown complete.\" << std::endl;\n";
+      mainCpp << "    std::cout << \"[RUNTIME] Shutdown complete. Frames: \"\n";
+      mainCpp << "              << PS4Emu::GetFrameCounter() << std::endl;\n";
       mainCpp << "    return 0;\n";
       mainCpp << "}\n";
     }
   }
 
+  // --- PASS 8: Export memory.bin (ELF segments for runtime loading) ---
+  {
+    std::filesystem::create_directories(root / "data");
+    std::ofstream memFile(root / "data" / "memory.bin", std::ios::binary);
+
+    uint32_t magic = 0x34345350u; // 'PS44'
+    uint32_t numSegs = static_cast<uint32_t>(segments_.size());
+    memFile.write(reinterpret_cast<const char*>(&magic), 4);
+    memFile.write(reinterpret_cast<const char*>(&numSegs), 4);
+
+    for (const auto& seg : segments_) {
+      uint64_t vaddr = seg.virtualAddress;
+      uint64_t memSize = seg.memSize > 0 ? seg.memSize : seg.size;  // Use memSize for BSS padding
+      memFile.write(reinterpret_cast<const char*>(&vaddr), 8);
+      memFile.write(reinterpret_cast<const char*>(&memSize), 8);
+      
+      // Write file data (p_filesz bytes)
+      if (seg.size > 0 && seg.fileOffset + seg.size <= rawData_.size()) {
+        memFile.write(reinterpret_cast<const char*>(rawData_.data() + seg.fileOffset),
+                      static_cast<std::streamsize>(seg.size));
+      } else if (seg.size > 0) {
+        // Partial write + zero-pad
+        uint64_t available = rawData_.size() > seg.fileOffset ? rawData_.size() - seg.fileOffset : 0;
+        if (available > 0) {
+          memFile.write(reinterpret_cast<const char*>(rawData_.data() + seg.fileOffset),
+                        static_cast<std::streamsize>(available));
+        }
+        std::vector<char> zeros(seg.size - available, 0);
+        memFile.write(zeros.data(), static_cast<std::streamsize>(zeros.size()));
+      }
+      
+      // Write BSS zero-padding (memSize - size bytes)
+      if (memSize > seg.size) {
+        std::vector<char> zeros(memSize - seg.size, 0);
+        memFile.write(zeros.data(), static_cast<std::streamsize>(zeros.size()));
+      }
+    }
+    LOG_INFO(Common, "Exported {} ELF segments to data/memory.bin", numSegs);
+  }
+
   {
     std::ofstream cmake(root / "CMakeLists.txt");
-    cmake << "cmake_minimum_required(VERSION 3.10)\n";
+    cmake << "cmake_minimum_required(VERSION 3.14)\n";
     cmake << "project(DecompiledGame CXX)\n\n";
     cmake << "set(CMAKE_CXX_STANDARD 17)\n";
-    cmake << "add_compile_options(-fbracket-depth=1024)\n";
-    cmake << "add_compile_options(-Wno-unused-variable -Wno-unused-but-set-variable)\n\n";
+    cmake << "set(CMAKE_CXX_STANDARD_REQUIRED ON)\n\n";
+    cmake << "# Compiler flags for large generated files\n";
+    cmake << "add_compile_options(\n";
+    cmake << "    -fbracket-depth=1024\n";
+    cmake << "    -Wno-unused-variable\n";
+    cmake << "    -Wno-unused-but-set-variable\n";
+    cmake << "    -Wno-unused-parameter\n";
+    cmake << "    -Wno-missing-field-initializers\n";
+    cmake << "    -Wno-tautological-compare\n";
+    cmake << "    -Wno-tautological-constant-out-of-range-compare\n";
+    cmake << "    -Wno-logical-not-parentheses\n";
+    cmake << "    -O0\n";
+    cmake << ")\n\n";
     cmake << "# Include directories\n";
     cmake << "include_directories(include)\n";
     cmake << "include_directories(ps4mel)\n\n";
+    cmake << "# SDL2 - required by ps4MEL graphics/stub layer\n";
+    cmake << "find_package(SDL2 QUIET)\n";
+    cmake << "if(SDL2_FOUND)\n";
+    cmake << "    message(STATUS \"SDL2 found: ${SDL2_INCLUDE_DIRS}\")\n";
+    cmake << "    include_directories(${SDL2_INCLUDE_DIRS})\n";
+    cmake << "    set(HAS_SDL2 TRUE)\n";
+    cmake << "else()\n";
+    cmake << "    # Try pkg-config fallback\n";
+    cmake << "    find_package(PkgConfig QUIET)\n";
+    cmake << "    if(PKG_CONFIG_FOUND)\n";
+    cmake << "        pkg_check_modules(SDL2 QUIET sdl2)\n";
+    cmake << "        if(SDL2_FOUND)\n";
+    cmake << "            include_directories(${SDL2_INCLUDE_DIRS})\n";
+    cmake << "            set(HAS_SDL2 TRUE)\n";
+    cmake << "        endif()\n";
+    cmake << "    endif()\n";
+    cmake << "    if(NOT HAS_SDL2)\n";
+    cmake << "        message(WARNING \"SDL2 not found. Graphics stubs will be disabled.\")\n";
+    cmake << "        add_definitions(-DPS4_NO_SDL)\n";
+    cmake << "    endif()\n";
+    cmake << "endif()\n\n";
     cmake << "# Game source files\n";
     cmake << "file(GLOB GAME_SOURCES \"src/*.cpp\")\n\n";
     cmake << "# PS4 Runtime Emulation Layer (ps4MEL)\n";
@@ -1171,14 +1410,33 @@ void DecompilerContext::ExportProject(const std::string &outPath) {
     cmake << "    ps4mel/ps4_tls.cpp\n";
     cmake << "    ps4mel/ps4_stubs.cpp\n";
     cmake << "    ps4mel/runtime.cpp\n";
-    cmake << ")\n\n";
+    cmake << ")\n";
+    cmake << "if(HAS_SDL2)\n";
+    cmake << "    list(APPEND PS4MEL_SOURCES ps4mel/sdl_backend.cpp)\n";
+    cmake << "endif()\n\n";
     cmake << "add_executable(Game ${GAME_SOURCES} ${PS4MEL_SOURCES})\n\n";
     cmake << "# Platform-specific linking\n";
     cmake << "if(APPLE)\n";
     cmake << "    target_link_libraries(Game PRIVATE pthread)\n";
+    cmake << "    if(HAS_SDL2)\n";
+    cmake << "        target_link_libraries(Game PRIVATE ${SDL2_LIBRARIES})\n";
+    cmake << "    endif()\n";
     cmake << "elseif(UNIX)\n";
-    cmake << "    target_link_libraries(Game PRIVATE pthread)\n";
-    cmake << "endif()\n";
+    cmake << "    target_link_libraries(Game PRIVATE pthread dl)\n";
+    cmake << "    if(HAS_SDL2)\n";
+    cmake << "        target_link_libraries(Game PRIVATE ${SDL2_LIBRARIES})\n";
+    cmake << "    endif()\n";
+    cmake << "elseif(WIN32)\n";
+    cmake << "    if(HAS_SDL2)\n";
+    cmake << "        target_link_libraries(Game PRIVATE ${SDL2_LIBRARIES})\n";
+    cmake << "    endif()\n";
+    cmake << "endif()\n\n";
+    cmake << "# Copy data folder next to binary\n";
+    cmake << "add_custom_command(TARGET Game POST_BUILD\n";
+    cmake << "    COMMAND ${CMAKE_COMMAND} -E copy_directory\n";
+    cmake << "        ${CMAKE_SOURCE_DIR}/data $<TARGET_FILE_DIR:Game>/data\n";
+    cmake << "    COMMENT \"Copying data/memory.bin to build directory\"\n";
+    cmake << ")\n";
   }
 
   std::cout << "Project exported to: " << outPath << "\n";

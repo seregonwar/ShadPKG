@@ -50,6 +50,11 @@ public:
   uint64_t GetBaseAddress() const { return baseAddress_; }
   uint64_t GetEntryPoint() const { return entryPoint_; }
   void SetEntryPoint(uint64_t ep) { entryPoint_ = ep; }
+  
+  uint64_t GetInitArrayAddr() const { return initArrayAddr_; }
+  uint64_t GetInitArraySize() const { return initArraySize_; }
+  uint64_t GetFiniArrayAddr() const { return finiArrayAddr_; }
+  uint64_t GetFiniArraySize() const { return finiArraySize_; }
 
   const std::vector<std::shared_ptr<IR::Function>> &GetFunctions() const {
     return functions_;
@@ -74,6 +79,10 @@ private:
   uint64_t baseAddress_ = 0;
   uint64_t entryPoint_ = 0;
   uint64_t elfOffset_ = 0;
+  uint64_t initArrayAddr_ = 0;
+  uint64_t initArraySize_ = 0;
+  uint64_t finiArrayAddr_ = 0;
+  uint64_t finiArraySize_ = 0;
   std::vector<std::shared_ptr<IR::Function>> functions_;
   std::shared_ptr<Analysis::SymbolDatabase> symbolDatabase_;
   std::shared_ptr<Analysis::TypeManager> typeManager_ =
@@ -139,7 +148,8 @@ private:
   struct Segment {
     uint64_t virtualAddress;
     uint64_t fileOffset;
-    uint64_t size;
+    uint64_t size;    // p_filesz: bytes present in file
+    uint64_t memSize; // p_memsz:  bytes to map in memory (>= size, BSS zero-pad)
   };
   std::vector<Segment> segments_;
 

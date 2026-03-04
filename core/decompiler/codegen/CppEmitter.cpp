@@ -194,7 +194,7 @@ CppEmitter::generate(const std::shared_ptr<AST::FunctionAST> &func) {
     emit(typeName, TokenType::Type);
     emit(" ");
     emit(var.name, TokenType::Identifier);
-    emit("; ", TokenType::Text);
+    emit(" = 0; ", TokenType::Text);
     emit("// [rbp", TokenType::Comment);
     emit(std::string(var.stackOffset < 0 ? " - " : " + ") + "0x",
          TokenType::Comment);
@@ -208,6 +208,13 @@ CppEmitter::generate(const std::shared_ptr<AST::FunctionAST> &func) {
   if (!func->locals.empty())
     emit("\n");
 
+  // Safety counters (declared before body so gotos can't jump over them)
+  indent();
+  emit("int64_t _loop_limit = 0; // per-loop iteration limiter\n", TokenType::Text);
+  indent();
+  emit("int64_t _goto_count = 0;  // total goto steps limiter\n", TokenType::Text);
+  emit("\n");
+
   // Body
   if (func->body) {
     for (const auto &stmt : func->body->statements) {
@@ -215,6 +222,12 @@ CppEmitter::generate(const std::shared_ptr<AST::FunctionAST> &func) {
     }
   }
 
+  // Escape label for goto-based loop bailout
+  emit("_func_exit:\n", TokenType::Text);
+  // Always emit a fallback return so clang doesn't insert a ud2 trap.
+  // Real return paths are emitted by ReturnStatement visitors above.
+  indent();
+  emit("return 0; // fallback\n", TokenType::Text);
   indentLevel_--;
   emit("}\n");
 
@@ -812,12 +825,15 @@ void CppEmitter::visit(AST::IfStatement *node) {
 }
 
 void CppEmitter::visit(AST::WhileStatement *node) {
+  // Reset counter (assignment, not declaration - safe for goto)
+  indent(); emit("_loop_limit = 0;\n", TokenType::Text);
   indent();
   emit("while", TokenType::Keyword);
   emit(" (", TokenType::Text);
   node->condition->accept(this);
   emit(") {\n", TokenType::Text);
   indentLevel_++;
+  indent(); emit("if (++_loop_limit > 1000000LL) break; // loop safety\n", TokenType::Comment);
   if (node->body) {
     if (auto compound =
             std::dynamic_pointer_cast<AST::CompoundStatement>(node->body)) {
@@ -832,10 +848,13 @@ void CppEmitter::visit(AST::WhileStatement *node) {
 }
 
 void CppEmitter::visit(AST::DoWhileStatement *node) {
+  // Reset counter (assignment, not declaration - safe for goto)
+  indent(); emit("_loop_limit = 0;\n", TokenType::Text);
   indent();
   emit("do", TokenType::Keyword);
   emit(" {\n", TokenType::Text);
   indentLevel_++;
+  indent(); emit("if (++_loop_limit > 1000000LL) break; // loop safety\n", TokenType::Comment);
   if (node->body) {
     if (auto compound =
             std::dynamic_pointer_cast<AST::CompoundStatement>(node->body)) {
@@ -855,9 +874,29 @@ void CppEmitter::visit(AST::DoWhileStatement *node) {
 }
 
 void CppEmitter::visit(AST::ForStatement *node) {
-  // Unimplemented basic for
   indent();
-  emit("for (...) {}\n");
+  emit("for (", TokenType::Keyword);
+  if (node->init)
+    node->init->accept(this);
+  emit("; ", TokenType::Text);
+  if (node->condition)
+    node->condition->accept(this);
+  emit("; ", TokenType::Text);
+  if (node->step)
+    node->step->accept(this);
+  emit(") {\n", TokenType::Text);
+  indentLevel_++;
+  if (node->body) {
+    if (auto compound =
+            std::dynamic_pointer_cast<AST::CompoundStatement>(node->body)) {
+      for (const auto &s : compound->statements)
+        s->accept(this);
+    } else {
+      node->body->accept(this);
+    }
+  }
+  indentLevel_--;
+  emitLine("}", TokenType::Text);
 }
 
 void CppEmitter::visit(AST::ReturnStatement *node) {
@@ -882,6 +921,8 @@ void CppEmitter::visit(AST::GotoStatement *node) {
   indent();
   // Only emit goto if the target label exists in this function
   if (emittedLabels_.count(node->label)) {
+    // Safety: bail out if this function has looped too many times via gotos
+    emit("if (++_goto_count > 100000LL) goto _func_exit; ", TokenType::Comment);
     emit("goto", TokenType::Keyword);
     emit(" ", TokenType::Text);
     emit(node->label, TokenType::Identifier, node->targetAddress);
