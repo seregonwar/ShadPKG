@@ -132,9 +132,19 @@ void Crypto::aesCbcCfb128DecryptEntry(std::span<const CryptoPP::byte, 32> ivkey,
     CryptoPP::AES::Decryption aesDecryption(key.data(), CryptoPP::AES::DEFAULT_KEYLENGTH);
     CryptoPP::CBC_Mode_ExternalCipher::Decryption cbcDecryption(aesDecryption, iv.data());
 
-    for (size_t i = 0; i < decrypted.size(); i += CryptoPP::AES::BLOCKSIZE) {
+    // FIX: process only whole AES blocks and copy any trailing partial block
+    // verbatim. The old loop always processed 16 bytes per iteration and read
+    // past the end of the buffers when the size was not a multiple of 16 (e.g.
+    // npbind.dat at 532 bytes), corrupting the heap (STATUS_HEAP_CORRUPTION).
+    const size_t full_blocks =
+        (decrypted.size() / CryptoPP::AES::BLOCKSIZE) * CryptoPP::AES::BLOCKSIZE;
+    for (size_t i = 0; i < full_blocks; i += CryptoPP::AES::BLOCKSIZE) {
         cbcDecryption.ProcessData(decrypted.data() + i, ciphertext.data() + i,
                                   CryptoPP::AES::BLOCKSIZE);
+    }
+    if (full_blocks < decrypted.size()) {
+        std::memcpy(decrypted.data() + full_blocks, ciphertext.data() + full_blocks,
+                    decrypted.size() - full_blocks);
     }
 }
 
